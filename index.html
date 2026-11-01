@@ -891,10 +891,12 @@ select,input[type=text],input[type=password],textarea{border:1px solid var(--lin
         <div class="aires" id="aiOut"></div>
         <details class="aiset" id="aiSet">
           <summary>AI-innstillinger</summary>
-          <label>API-nøkkel fra Anthropic<input type="password" id="aiKey" autocomplete="off" placeholder="sk-ant-…"></label>
+          <label>Worker-adresse (anbefalt)<input type="text" id="aiWorker" autocomplete="off" placeholder="https://overland-ai.….workers.dev"></label>
+          <label>Tilgangskode til Worker<input type="password" id="aiToken" autocomplete="off"></label>
+          <label>Eller egen API-nøkkel (uten Worker)<input type="password" id="aiKey" autocomplete="off" placeholder="sk-ant-…"></label>
           <label>Modell<select id="aiModel"><option value="claude-sonnet-5-5">Sonnet 5.5 (best)</option><option value="claude-haiku-5-5">Haiku 5.5 (raskest og billigst)</option></select></label>
           <label>Om deg og kjøretøyet (valgfritt)<input type="text" id="aiAbout" placeholder="F.eks. terrengbil, sover i bilen, har bålutstyr"></label>
-          <p class="muted" style="margin:8px 0 0;font-size:12px">Nøkkelen lagres bare på denne enheten. Lag en på console.anthropic.com og sett en bruksgrense der. Når du spør, sendes posisjonen din og stedslisten til Claude, og posisjonen til met.no for værvarsel.</p>
+          <p class="muted" style="margin:8px 0 0;font-size:12px">Med Worker ligger API-nøkkelen skjult hos Cloudflare, og bare tilgangskoden lagres på denne enheten. Uten Worker lagres nøkkelen på enheten. Sett en bruksgrense på console.anthropic.com. Når du spør, sendes posisjonen din og stedslisten til Claude, og posisjonen til met.no for værvarsel.</p>
         </details>
       </div>
       <div class="row">
@@ -1602,7 +1604,8 @@ async function downloadArea(){
 }
 
 /* ---------- AI-planlegger ---------- */
-const AI={cfg:Object.assign({key:'',model:'claude-sonnet-5-5',about:''},ls.get('ai',{})),busy:false};
+const DEFAULT_WORKER='';
+const AI={cfg:Object.assign({key:'',model:'claude-sonnet-5-5',about:'',worker:DEFAULT_WORKER,token:''},ls.get('ai',{})),busy:false};
 const COMPASS=['N','NØ','Ø','SØ','S','SV','V','NV'];
 function bearing(a,b){const dl=(b[1]-a[1])*rad,y=Math.sin(dl)*Math.cos(b[0]*rad),x=Math.cos(a[0]*rad)*Math.sin(b[0]*rad)-Math.sin(a[0]*rad)*Math.cos(b[0]*rad)*Math.cos(dl);return(Math.atan2(y,x)/rad+360)%360}
 const compass=deg=>COMPASS[Math.round(deg/45)%8];
@@ -1697,9 +1700,12 @@ const AI_SYS='Du er en praktisk reiseassistent i en kartapp for overlanding (bil
 async function askClaude(user){
   const ac=new AbortController(),to=setTimeout(()=>ac.abort(),70000);
   try{
-    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',signal:ac.signal,headers:{'content-type':'application/json','x-api-key':AI.cfg.key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:AI.cfg.model,max_tokens:1800,system:AI_SYS,messages:[{role:'user',content:user}]})});
+    const w=/^https:\/\//.test(AI.cfg.worker||'')?AI.cfg.worker:'';
+    const body=JSON.stringify({model:AI.cfg.model,max_tokens:1800,system:AI_SYS,messages:[{role:'user',content:user}]});
+    const r=w?await fetch(w,{method:'POST',signal:ac.signal,headers:{'content-type':'application/json','x-app-token':AI.cfg.token||''},body}):
+      await fetch('https://api.anthropic.com/v1/messages',{method:'POST',signal:ac.signal,headers:{'content-type':'application/json','x-api-key':AI.cfg.key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body});
     const j=await r.json().catch(()=>null);
-    if(!r.ok)throw new Error(r.status===401?'Ugyldig API-nøkkel':((j&&j.error&&j.error.message)||'Feil fra tjenesten ('+r.status+')'));
+    if(!r.ok)throw new Error(r.status===401&&!w?'Ugyldig API-nøkkel':((j&&j.error&&j.error.message)||'Feil fra tjenesten ('+r.status+')'));
     return((j&&j.content)||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
   }catch(e){
     if(e.name==='AbortError')throw new Error('Tok for lang tid. Prøv igjen.');
@@ -1738,7 +1744,7 @@ async function askAi(){
   if(AI.busy)return;
   const q=$('#aiQ').value.trim();
   if(!q){toast('Skriv hva du vil i dag');$('#aiQ').focus();return}
-  if(!AI.cfg.key){$('#aiSet').open=true;toast('Legg inn API-nøkkel først');$('#aiKey').focus();return}
+  if(!AI.cfg.key&&!AI.cfg.worker){$('#aiSet').open=true;toast('Legg inn Worker-adresse eller API-nøkkel først');$('#aiWorker').focus();return}
   if(!navigator.onLine){setAiStatus('Du er offline. AI trenger nett.',true);return}
   AI.busy=true;$('#aiGo').disabled=true;setAiStatus('Henter steder og vær …');
   try{
@@ -1754,14 +1760,14 @@ async function askAi(){
 }
 function bindAi(){
   const c=AI.cfg;
-  $('#aiKey').value=c.key||'';$('#aiModel').value=c.model||'claude-sonnet-5-5';$('#aiAbout').value=c.about||'';
+  $('#aiKey').value=c.key||'';$('#aiWorker').value=c.worker||'';$('#aiToken').value=c.token||'';$('#aiModel').value=c.model||'claude-sonnet-5-5';$('#aiAbout').value=c.about||'';
   if($('#aiModel').value!==c.model)$('#aiModel').value='claude-sonnet-5-5';
-  const save=()=>{AI.cfg={key:$('#aiKey').value.trim(),model:$('#aiModel').value,about:$('#aiAbout').value.trim()};ls.set('ai',AI.cfg)};
-  ['aiKey','aiModel','aiAbout'].forEach(id=>$('#'+id).addEventListener('change',save));
+  const save=()=>{AI.cfg={key:$('#aiKey').value.trim(),worker:$('#aiWorker').value.trim(),token:$('#aiToken').value.trim(),model:$('#aiModel').value,about:$('#aiAbout').value.trim()};ls.set('ai',AI.cfg)};
+  ['aiKey','aiWorker','aiToken','aiModel','aiAbout'].forEach(id=>$('#'+id).addEventListener('change',save));
   $('#aiGo').onclick=()=>{save();askAi()};
   $('#aiQ').addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){save();askAi()}});
   $$('.qchips button').forEach(b=>b.onclick=()=>{$('#aiQ').value=b.dataset.q;save();askAi()});
-  if(!AI.cfg.key)$('#aiSet').open=true;
+  if(!AI.cfg.key&&!AI.cfg.worker)$('#aiSet').open=true;
   const last=ls.get('ailast',null);
   if(last&&last.res&&last.res.oppsummering!==undefined){$('#aiQ').value=last.q||'';renderAi(last)}
   updateSun();
