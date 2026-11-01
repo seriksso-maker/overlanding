@@ -1000,7 +1000,7 @@ select,input[type=text],input[type=password],textarea{border:1px solid var(--lin
       <p>Kart og steder du har sett lagres på enheten. Nedlasting av områder er begrenset i antall fliser for å være snill mot kartserverne.</p>
       <h4>Kilder</h4>
       <p>Kartdata © Kartverket (CC BY 4.0), © OpenStreetMap-bidragsytere, © OpenTopoMap (CC-BY-SA), satellitt: Esri, Maxar, Earthstar Geographics.</p>
-      <p class="muted" style="font-size:12px">Versjon 2026-11-01 m</p>
+      <p class="muted" style="font-size:12px">Versjon 2026-11-01 n</p>
     </div>
     </div>
   </div>
@@ -1719,8 +1719,8 @@ async function getWeather(lat,lon){
     return out.length?out:null;
   }catch(e){return null}
 }
-async function ensureAround(lat,lon){
-  const b=L.latLngBounds([lat-.3,lon-.6],[lat+.3,lon+.6]),need=[];
+async function ensureAround(lat,lon,small){
+  const dy=small?.2:.3,dx=small?.4:.6,b=L.latLngBounds([lat-dy,lon-dx],[lat+dy,lon+dx]),need=[];
   for(const [i,j] of cellsFor(b)){
     const k='c2:'+i+':'+j;
     if(loaded.has(k)&&Date.now()-loaded.get(k)<6e5)continue;
@@ -1833,8 +1833,8 @@ async function buildCtx(from,q){
   if(dest){
     const idx=[];for(let k=1;k<=3;k++)idx.push(Math.min(pts.length-1,Math.round(pts.length*k/3)-1));
     const spots=[[ref[0],ref[1]]].concat(idx.map(i=>[pts[i][0],pts[i][1]]));
-    jobs.push(cap((async()=>{for(const sp of spots)await ensureAround(sp[0],sp[1]).catch(()=>0)})(),10000));
-  }else jobs.push(cap(ensureAround(ref[0],ref[1]).catch(()=>0),6000));
+    jobs.push(cap((async()=>{for(const sp of spots)await ensureAround(sp[0],sp[1],true).catch(()=>0)})(),20000));
+  }else{setAiStatus('Henter kartdata for området …');jobs.push(cap(ensureAround(ref[0],ref[1],true).catch(()=>0),25000))}
   const [wx]=await Promise.all(jobs);
   const lookup=new Map(),lines=[],arr=[],cnt={};
   if(dest){
@@ -1870,6 +1870,7 @@ async function buildCtx(from,q){
     (AI.cfg.about?'\nOm brukeren og kjøretøyet: '+AI.cfg.about:'')+'\n</situasjon>\n'+
     '<steder>\n'+(lines.join('\n')||'(ingen steder funnet i nærheten, kartdata mangler eller brukeren er offline)')+'\n</steder>\n'+
     '<egne_plasser>\n'+(ol.join('\n')||'(ingen)')+'\n</egne_plasser>';
+  if(!warn&&!lookup.size)warn='Fant ingen steder i kartdataene ennå. Kartdata for området lastes i bakgrunnen, så vent litt og spør igjen.';
   return{text,lookup,ref,dest,warn,meta:label+', '+lookup.size+' steder'+(dest?' langs ruten til '+dest.name:'')+(wx?', værvarsel':'')};
 }
 const AI_SYS='Du er en praktisk reiseassistent i en kartapp for overlanding (bilbasert friluftsliv) i Norge og Sverige. Brukeren forteller hva hun eller han vil og skal i dag. Du får utgangspunkt, tid, soltider, værvarsel og en liste med steder fra kartdata (OpenStreetMap) og brukerens egne lagrede plasser, hver med id.\n\n'+
