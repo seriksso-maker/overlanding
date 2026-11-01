@@ -798,6 +798,7 @@ select,input[type=text],input[type=password],textarea{border:1px solid var(--lin
 .recstat{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
 .stars{color:var(--c-picnic);letter-spacing:1px}
 
+#errbar{position:fixed;z-index:1700;left:10px;right:10px;top:calc(10px + env(safe-area-inset-top,0px));background:var(--danger);color:#fff;border-radius:12px;padding:10px 14px;font-size:13px;box-shadow:var(--shadow)}
 /* AI-planlegger */
 .aibox{border:1px solid color-mix(in srgb,var(--accent) 45%,var(--line));background:color-mix(in srgb,var(--accent) 7%,var(--panel));border-radius:16px;padding:12px;margin:0 0 14px}
 .aibox h3{margin:0 0 2px;font-size:17px}
@@ -838,6 +839,7 @@ select,input[type=text],input[type=password],textarea{border:1px solid var(--lin
 <body>
 <div id="map" role="application" aria-label="Kart"></div>
 
+<div id="errbar" hidden role="alert"></div>
 <div id="pick" hidden><span>Trykk på kartet for å velge sted</span><button id="pickCancel" type="button">Avbryt</button></div>
 
 <div id="fabs">
@@ -896,6 +898,7 @@ select,input[type=text],input[type=password],textarea{border:1px solid var(--lin
           <label>Eller egen API-nøkkel (uten Worker)<input type="password" id="aiKey" autocomplete="off" placeholder="sk-ant-…"></label>
           <label>Modell<select id="aiModel"><option value="claude-sonnet-5-5">Sonnet 5.5 (best)</option><option value="claude-haiku-5-5">Haiku 5.5 (raskest og billigst)</option></select></label>
           <label>Om deg og kjøretøyet (valgfritt)<input type="text" id="aiAbout" placeholder="F.eks. terrengbil, sover i bilen, har bålutstyr"></label>
+          <div class="row" style="margin:10px 0 0"><button class="btn sm" id="aiTest" type="button">Test forbindelsen</button><span id="aiTestOut" class="muted" style="font-size:12px"></span></div>
           <p class="muted" style="margin:8px 0 0;font-size:12px">Med Worker ligger API-nøkkelen skjult hos Cloudflare, og bare tilgangskoden lagres på denne enheten. Uten Worker lagres nøkkelen på enheten. Sett en bruksgrense på console.anthropic.com. Når du spør, sendes posisjonen din og stedslisten til Claude, og posisjonen til met.no for værvarsel.</p>
         </details>
       </div>
@@ -963,6 +966,7 @@ select,input[type=text],input[type=password],textarea{border:1px solid var(--lin
       <p>Kart og steder du har sett lagres på enheten. Nedlasting av områder er begrenset i antall fliser for å være snill mot kartserverne.</p>
       <h4>Kilder</h4>
       <p>Kartdata © Kartverket (CC BY 4.0), © OpenStreetMap-bidragsytere, © OpenTopoMap (CC-BY-SA), satellitt: Esri, Maxar, Earthstar Geographics.</p>
+      <p class="muted" style="font-size:12px">Versjon 2026-11-01 d</p>
     </div>
     </div>
   </div>
@@ -990,6 +994,9 @@ select,input[type=text],input[type=password],textarea{border:1px solid var(--lin
 <script>
 (()=>{
 'use strict';
+function showErr(m){const e=document.getElementById('errbar');if(!e||/ResizeObserver/.test(m))return;e.textContent='Feil i appen: '+m+' (trykk for å skjule)';e.hidden=false;e.onclick=()=>{e.hidden=true}}
+window.addEventListener('error',ev=>showErr(String(ev.message||'ukjent feil')));
+window.addEventListener('unhandledrejection',ev=>showErr(String((ev.reason&&ev.reason.message)||ev.reason||'ukjent feil')));
 const $=(s,r=document)=>r.querySelector(s);
 const $$=(s,r=document)=>Array.from(r.querySelectorAll(s));
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1034,7 +1041,7 @@ function fmtCoord(lat,lon,f){
 /* ---------- IndexedDB ---------- */
 const DB={
   db:null,mem:{},
-  open(){return new Promise(res=>{try{const r=indexedDB.open('overland-norden',1);r.onupgradeneeded=()=>{['tiles','cells','places','tracks'].forEach(n=>{if(!r.result.objectStoreNames.contains(n))r.result.createObjectStore(n)})};r.onsuccess=()=>{this.db=r.result;res(true)};r.onerror=()=>res(false);r.onblocked=()=>res(false)}catch(e){res(false)}})},
+  open(){return new Promise(res=>{try{const r=indexedDB.open('overland-norden',1);r.onupgradeneeded=()=>{['tiles','cells','places','tracks'].forEach(n=>{if(!r.result.objectStoreNames.contains(n))r.result.createObjectStore(n)})};r.onsuccess=()=>{if(this.dead){r.result.close();res(false);return}this.db=r.result;res(true)};r.onerror=()=>res(false);r.onblocked=()=>res(false)}catch(e){res(false)}})},
   st(s,m){return this.db.transaction(s,m).objectStore(s)},
   rq(r){return new Promise((ok,no)=>{r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)})},
   async get(s,k){if(!this.db)return(this.mem[s]||{})[k];try{return await this.rq(this.st(s,'readonly').get(k))}catch(e){return undefined}},
@@ -1698,11 +1705,11 @@ async function buildCtx(from){
 const AI_SYS='Du er en praktisk reiseassistent i en kartapp for overlanding (bilbasert friluftsliv) i Norge og Sverige. Brukeren forteller hva hun eller han vil og skal i dag. Du får utgangspunkt, tid, soltider, værvarsel og en liste med steder fra kartdata (OpenStreetMap) og brukerens egne lagrede plasser, hver med id.\n\n'+
 'Regler:\n- Foreslå bare steder fra listene, og referer til dem med nøyaktig id. Ikke finn på steder, priser, åpningstider eller veiforhold. Er noe usikkert, si det.\n- Ta hensyn til lysforhold, vær og kjøretid. Avstandene er luftlinje: anslå vanlig kjøretid grovt (luftlinje ganger ca. 1,4 på vanlig vei) og si at det er et anslag.\n- Er det få eller ingen passende steder, si det ærlig. Nevner brukeren et annet område enn utgangspunktet, si at du bare ser steder nær utgangspunktet og at kartet kan flyttes dit.\n- Nevn regler (allemannsrett, bålforbud i Norge 15. april til 15. september) bare når det er relevant, og kort.\n- Skriv norsk bokmål, kort og konkret.\n\n'+
 'Svar KUN med gyldig JSON, uten markdown og uten tekst rundt, på denne formen:\n{"oppsummering": "2-3 setninger med anbefalingen", "forslag": [{"id": "id fra listene", "hvorfor": "kort begrunnelse"}], "plan": ["kort steg med omtrentlig klokkeslett"], "tips": ["kort tips"]}\n"forslag" har maks 5 steder, best først (kan være tom). "plan" har 3-7 steg (kan være tom hvis det ikke passer). "tips" har 0-4 punkter.';
-async function askClaude(user){
+async function askClaude(user,opts){
   const ac=new AbortController(),to=setTimeout(()=>ac.abort(),70000);
   try{
-    const w=/^https:\/\//.test(AI.cfg.worker||'')?AI.cfg.worker:'';
-    const body=JSON.stringify({model:AI.cfg.model,max_tokens:1800,system:AI_SYS,messages:[{role:'user',content:user}]});
+    const w=/^https:\/\//.test(AI.cfg.worker||'')&&(AI.cfg.token||!AI.cfg.key)?AI.cfg.worker:'';
+    const body=JSON.stringify(Object.assign({model:AI.cfg.model,max_tokens:1800,system:AI_SYS,messages:[{role:'user',content:user}]},opts||{}));
     const r=w?await fetch(w,{method:'POST',signal:ac.signal,headers:{'content-type':'application/json','x-app-token':AI.cfg.token||''},body}):
       await fetch('https://api.anthropic.com/v1/messages',{method:'POST',signal:ac.signal,headers:{'content-type':'application/json','x-api-key':AI.cfg.key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body});
     const j=await r.json().catch(()=>null);
@@ -1745,7 +1752,7 @@ async function askAi(){
   if(AI.busy)return;
   const q=$('#aiQ').value.trim();
   if(!q){toast('Skriv hva du vil i dag');$('#aiQ').focus();return}
-  if(!AI.cfg.key&&!AI.cfg.worker){$('#aiSet').open=true;toast('Legg inn Worker-adresse eller API-nøkkel først');$('#aiWorker').focus();return}
+  if(!AI.cfg.key&&!(AI.cfg.worker&&AI.cfg.token)){$('#aiSet').open=true;toast('Skriv inn tilgangskoden først');$('#aiToken').focus();return}
   if(!navigator.onLine){setAiStatus('Du er offline. AI trenger nett.',true);return}
   AI.busy=true;$('#aiGo').disabled=true;setAiStatus('Henter steder og vær …');
   try{
@@ -1766,9 +1773,16 @@ function bindAi(){
   const save=()=>{AI.cfg={key:$('#aiKey').value.trim(),worker:$('#aiWorker').value.trim(),token:$('#aiToken').value.trim(),model:$('#aiModel').value,about:$('#aiAbout').value.trim()};ls.set('ai',AI.cfg)};
   ['aiKey','aiWorker','aiToken','aiModel','aiAbout'].forEach(id=>$('#'+id).addEventListener('change',save));
   $('#aiGo').onclick=()=>{save();askAi()};
+  $('#aiTest').onclick=async()=>{
+    save();const o=$('#aiTestOut');
+    if(!AI.cfg.key&&!(AI.cfg.worker&&AI.cfg.token)){o.textContent='Skriv inn tilgangskoden først.';return}
+    o.textContent='Tester …';
+    try{const t=await askClaude('Svar bare med ordet OK.',{max_tokens:20,system:'Svar kort.'});o.textContent='Forbindelsen virker. Svar: '+t.trim().slice(0,30)}
+    catch(e){o.textContent='Feil: '+e.message}
+  };
   $('#aiQ').addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){save();askAi()}});
   $$('.qchips button').forEach(b=>b.onclick=()=>{$('#aiQ').value=b.dataset.q;save();askAi()});
-  if(!AI.cfg.key&&!AI.cfg.worker)$('#aiSet').open=true;
+  if(!AI.cfg.key&&!AI.cfg.token)$('#aiSet').open=true;
   const last=ls.get('ailast',null);
   if(last&&last.res&&last.res.oppsummering!==undefined){$('#aiQ').value=last.q||'';renderAi(last)}
   updateSun();
@@ -1920,7 +1934,7 @@ function bind(){
 
 /* ---------- start ---------- */
 async function init(){
-  await DB.open();
+  await Promise.race([DB.open(),new Promise(res=>setTimeout(()=>{DB.dead=true;res(false)},3500))]);
   places=await DB.all('places');
   tracks=(await DB.all('tracks')).filter(t=>!t.active);
   const act=await DB.get('tracks','active');
@@ -1944,7 +1958,7 @@ async function init(){
   if(navigator.permissions&&navigator.permissions.query)navigator.permissions.query({name:'geolocation'}).then(r=>{if(r.state==='granted')startGPS()}).catch(()=>{});
   window.__ovn={map,gps,items,places,get tracks(){return tracks},get rec(){return rec},toUTM,buildGpx,sunTimes,hhmm,buildCtx};
 }
-init();
+init().catch(e=>showErr((e&&e.message)||String(e)));
 })();
 </script>
 </body>
