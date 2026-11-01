@@ -722,6 +722,8 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 #aiQ{flex:1;min-width:0;border:0!important;background:none!important;padding:8px 0!important;border-radius:0!important;resize:none;height:38px;line-height:22px;font-size:16px;overflow:hidden}
 #aiQ::placeholder{color:var(--muted)}
 #aiQ:focus-visible{outline:none}
+#aiClr{flex:none;width:34px;height:34px;border-radius:50%;border:0;background:var(--panel2);color:var(--muted);display:grid;place-items:center;padding:0}
+#aiClr svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2.4;stroke-linecap:round}
 #aiGo{flex:none;width:40px;height:40px;border-radius:50%;border:0;background:var(--signal);color:var(--signal-fg);display:grid;place-items:center;padding:0}
 #aiGo svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2.3;stroke-linecap:round;stroke-linejoin:round}
 #aiGo:disabled{opacity:.55}
@@ -867,6 +869,7 @@ select,input[type=text],input[type=password],textarea{border:1px solid var(--lin
 <div id="top">
   <form id="ask" role="search" onsubmit="return false">
     <textarea id="aiQ" rows="1" enterkeyhint="send" aria-label="Hva skal du i dag?" placeholder="Hva skal du i dag?"></textarea>
+    <button id="aiClr" type="button" aria-label="Tøm spørsmål og svar" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
     <button id="aiGo" type="submit" aria-label="Spør"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
   </form>
   <div class="aistat" id="aiStat" hidden role="status"></div>
@@ -997,7 +1000,7 @@ select,input[type=text],input[type=password],textarea{border:1px solid var(--lin
       <p>Kart og steder du har sett lagres på enheten. Nedlasting av områder er begrenset i antall fliser for å være snill mot kartserverne.</p>
       <h4>Kilder</h4>
       <p>Kartdata © Kartverket (CC BY 4.0), © OpenStreetMap-bidragsytere, © OpenTopoMap (CC-BY-SA), satellitt: Esri, Maxar, Earthstar Geographics.</p>
-      <p class="muted" style="font-size:12px">Versjon 2026-11-01 k</p>
+      <p class="muted" style="font-size:12px">Versjon 2026-11-01 l</p>
     </div>
     </div>
   </div>
@@ -1874,7 +1877,13 @@ function parseAi(txt){
 }
 function setAiStatus(m,err){const e=$('#aiStat');e.textContent=m;e.hidden=!m;e.classList.toggle('err',!!err);$('#aiGo').classList.toggle('busy',!!AI.busy)}
 function openAiSettings(){sub='ai';ls.set('sub','ai');showTab('more');if(panel.dataset.state==='closed')setState('open')}
-function autoGrow(){const q=$('#aiQ');q.style.height='38px';q.style.height=Math.min(q.scrollHeight,110)+'px'}
+function autoGrow(){const q=$('#aiQ');q.style.height='38px';q.style.height=Math.min(q.scrollHeight,110)+'px';$('#aiClr').hidden=!(q.value||$('#aiOut').querySelector('.lead'))}
+function clearAi(){
+  if(AI.busy)return;
+  $('#aiQ').value='';ls.set('ailast',null);setAiStatus('');
+  $('#aiOut').innerHTML='<div class="aiempty"><b>Skriv hva du vil i dag</b> i feltet øverst, så foreslår AI steder ut fra kartet, været og når sola går ned.</div>';
+  drawRoute(null);autoGrow();$('#aiQ').focus();
+}
 function renderAi(last){
   const r=last.res,ref=last.ref;
   let h='';
@@ -1893,7 +1902,7 @@ function renderAi(last){
   if(r.tips.length)h+='<h4>Tips</h4><ul class="tips">'+r.tips.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>';
   h+='<div class="muted" style="font-size:12px;margin-top:10px">«'+esc(last.q)+'» · '+fmtDate(last.t)+' · '+esc(last.meta)+'. Sjekk alltid åpningstider, vei og regler selv.</div>';
   $('#aiOut').innerHTML=h;
-  setAiStatus('');
+  setAiStatus('');autoGrow();
 }
 async function askAi(){
   if(AI.busy)return;
@@ -1924,6 +1933,7 @@ function bindAi(){
   ['aiKey','aiWorker','aiToken','aiModel','aiAbout'].forEach(id=>$('#'+id).addEventListener('change',save));
   $('#ask').addEventListener('submit',e=>{e.preventDefault();save();askAi()});
   $('#aiQ').addEventListener('input',autoGrow);
+  $('#aiClr').onclick=clearAi;
   $('#aiTest').onclick=async()=>{
     save();const o=$('#aiTestOut');
     if(!AI.cfg.key&&!(AI.cfg.worker&&AI.cfg.token)){o.textContent='Skriv inn tilgangskoden først.';return}
