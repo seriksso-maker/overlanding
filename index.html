@@ -997,7 +997,7 @@ select,input[type=text],input[type=password],textarea{border:1px solid var(--lin
       <p>Kart og steder du har sett lagres på enheten. Nedlasting av områder er begrenset i antall fliser for å være snill mot kartserverne.</p>
       <h4>Kilder</h4>
       <p>Kartdata © Kartverket (CC BY 4.0), © OpenStreetMap-bidragsytere, © OpenTopoMap (CC-BY-SA), satellitt: Esri, Maxar, Earthstar Geographics.</p>
-      <p class="muted" style="font-size:12px">Versjon 2026-11-01 j</p>
+      <p class="muted" style="font-size:12px">Versjon 2026-11-01 k</p>
     </div>
     </div>
   </div>
@@ -1785,14 +1785,16 @@ async function buildCtx(from,q){
   else{const c=map.getCenter();ref=[c.lat,c.lng];label='midten av kartet'}
   const cap=(pr,ms)=>Promise.race([pr,new Promise(r=>setTimeout(()=>r(null),ms))]);
   /* destinasjon? */
-  let dest=null,pts=null;
+  let dest=null,pts=null,warn='';
   const dn=findDest(q||'');
   if(dn.length&&navigator.onLine){
     setAiStatus('Finner rute …');
     const g=await geocode(dn);
-    if(g&&dist(ref,[g.lat,g.lon])>15000){
-      const r=await getRoute(ref,[g.lat,g.lon]);
-      if(r){dest={name:g.name,lat:g.lat,lon:g.lon,km:r.km,min:r.min,line:r.line.length>400?r.line.filter((_,i)=>i%Math.ceil(r.line.length/400)===0||i===r.line.length-1):r.line};pts=densify(r.line)}
+    if(!g)warn='Fant ikke stedet «'+dn[dn.length-1]+'» på kartet. Prøv å skrive stedsnavnet slik det står på kartet.';
+    else if(dist(ref,[g.lat,g.lon])>15000){
+      let r=await getRoute(ref,[g.lat,g.lon]),approx=false;
+      if(!r){const km=dist(ref,[g.lat,g.lon])/1000*1.3;r={km,min:km/70*60,line:[ref,[g.lat,g.lon]]};approx=true;warn='Fant ikke veirute akkurat nå. Viser rett linje, og Naviger finner veien i kartappen din.'}
+      dest={name:g.name,lat:g.lat,lon:g.lon,approx,km:r.km,min:r.min,line:r.line.length>400?r.line.filter((_,i)=>i%Math.ceil(r.line.length/400)===0||i===r.line.length-1):r.line};pts=densify(r.line)
     }
   }
   setAiStatus(dest?'Henter steder langs ruten …':'Henter steder og vær …');
@@ -1834,7 +1836,7 @@ async function buildCtx(from,q){
     (AI.cfg.about?'\nOm brukeren og kjøretøyet: '+AI.cfg.about:'')+'\n</situasjon>\n'+
     '<steder>\n'+(lines.join('\n')||'(ingen steder funnet i nærheten, kartdata mangler eller brukeren er offline)')+'\n</steder>\n'+
     '<egne_plasser>\n'+(ol.join('\n')||'(ingen)')+'\n</egne_plasser>';
-  return{text,lookup,ref,dest,meta:label+', '+lookup.size+' steder'+(dest?' langs ruten til '+dest.name:'')+(wx?', værvarsel':'')};
+  return{text,lookup,ref,dest,warn,meta:label+', '+lookup.size+' steder'+(dest?' langs ruten til '+dest.name:'')+(wx?', værvarsel':'')};
 }
 const AI_SYS='Du er en praktisk reiseassistent i en kartapp for overlanding (bilbasert friluftsliv) i Norge og Sverige. Brukeren forteller hva hun eller han vil og skal i dag. Du får utgangspunkt, tid, soltider, værvarsel og en liste med steder fra kartdata (OpenStreetMap) og brukerens egne lagrede plasser, hver med id.\n\n'+
 'Regler:\n- Står det en rute i situasjonen, planlegg langs den: stedene har km fra start og avstand fra veien. Foreslå overnatting eller stopp som passer med kjøretid, soltider og tid på døgnet, og skriv km fra start. Kjøretiden er fra veirute, ikke luftlinje.\n- Foreslå bare steder fra listene, og referer til dem med nøyaktig id. Ikke finn på steder, priser, åpningstider eller veiforhold. Er noe usikkert, si det.\n- Ta hensyn til lysforhold, vær og kjøretid. Avstandene er luftlinje: anslå vanlig kjøretid grovt (luftlinje ganger ca. 1,4 på vanlig vei) og si at det er et anslag.\n- Er det få eller ingen passende steder, si det ærlig. Nevner brukeren et annet område enn utgangspunktet, si at du bare ser steder nær utgangspunktet og at kartet kan flyttes dit.\n- Nevn regler (allemannsrett, bålforbud i Norge 15. april til 15. september) bare når det er relevant, og kort.\n- Skriv norsk bokmål, kort og konkret.\n\n'+
@@ -1876,7 +1878,7 @@ function autoGrow(){const q=$('#aiQ');q.style.height='38px';q.style.height=Math.
 function renderAi(last){
   const r=last.res,ref=last.ref;
   let h='';
-  if(last.dest){const d=last.dest;h+='<div class="card2"><div class="t" style="font-weight:700;font-size:16px">Til '+esc(d.name)+'</div><div class="muted" style="font-size:13px;margin:2px 0 10px">'+Math.round(d.km)+' km · ca '+fmtMin(d.min)+' uten stopp</div><div class="row wrap" style="margin:0"><button class="btn sm primary" data-act="nav" data-lat="'+d.lat+'" data-lon="'+d.lon+'">Naviger</button><button class="btn sm" data-act="routeshow">Vis rute på kart</button></div></div>'}
+  if(last.dest){const d=last.dest;h+='<div class="card2"><div class="t" style="font-weight:700;font-size:16px">Til '+esc(d.name)+'</div><div class="muted" style="font-size:13px;margin:2px 0 10px">'+(d.approx?'ca ':'')+Math.round(d.km)+' km · ca '+fmtMin(d.min)+(d.approx?' (anslag, ingen veirute)':' uten stopp')+'</div><div class="row wrap" style="margin:0"><button class="btn sm primary" data-act="nav" data-lat="'+d.lat+'" data-lon="'+d.lon+'">Naviger</button><button class="btn sm" data-act="routeshow">Vis rute på kart</button></div></div>'}
   h+='<p class="lead">'+esc(r.oppsummering)+'</p>';
   if(last.picks&&last.picks.length){
     h+='<h4>Forslag</h4><ul class="list">'+last.picks.map(p=>{
@@ -1908,7 +1910,7 @@ async function askAi(){
     const picks=[],seen={};
     res.forslag.forEach(f=>{const sn=ctx.lookup.get(String(f&&f.id));if(sn&&!seen[sn.id]&&picks.length<6){seen[sn.id]=1;picks.push(Object.assign({},sn,{hvorfor:String(f.hvorfor||'')}))}});
     const last={q,t:Date.now(),res,picks,ref:ctx.ref,meta:ctx.meta,dest:ctx.dest};
-    ls.set('ailast',last);renderAi(last);if(last.dest)drawRoute(last.dest,false);showTab('sug');if(panel.dataset.state==='closed')setState('open');setTimeout(()=>{$('#panes').scrollTop=0},60);
+    ls.set('ailast',last);renderAi(last);if(last.dest)drawRoute(last.dest,false);if(ctx.warn)toast(ctx.warn,6000);showTab('sug');if(panel.dataset.state==='closed')setState('open');setTimeout(()=>{$('#panes').scrollTop=0},60);
   }catch(e){setAiStatus('Feil: '+e.message,true)}
   finally{AI.busy=false;$('#aiGo').disabled=false;$('#aiGo').classList.remove('busy');document.body.classList.remove('asking');renderAllSoon()}
 }
