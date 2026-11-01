@@ -1604,8 +1604,9 @@ async function downloadArea(){
 }
 
 /* ---------- AI-planlegger ---------- */
-const DEFAULT_WORKER='';
+const DEFAULT_WORKER='https://overlandai.seriksso.workers.dev';
 const AI={cfg:Object.assign({key:'',model:'claude-sonnet-5-5',about:'',worker:DEFAULT_WORKER,token:''},ls.get('ai',{})),busy:false};
+if(!AI.cfg.worker)AI.cfg.worker=DEFAULT_WORKER;
 const COMPASS=['N','NØ','Ø','SØ','S','SV','V','NV'];
 function bearing(a,b){const dl=(b[1]-a[1])*rad,y=Math.sin(dl)*Math.cos(b[0]*rad),x=Math.cos(a[0]*rad)*Math.sin(b[0]*rad)-Math.sin(a[0]*rad)*Math.cos(b[0]*rad)*Math.cos(dl);return(Math.atan2(y,x)/rad+360)%360}
 const compass=deg=>COMPASS[Math.round(deg/45)%8];
