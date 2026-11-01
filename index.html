@@ -678,7 +678,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
   --bg:#e6ece8; --panel:#f8f9f6; --panel2:#e9eeea; --fg:#10231c; --muted:#5b6b63; --line:#d3dcd6;
   --accent:#17594a; --accent-fg:#ffffff; --signal:#d8432b; --signal-fg:#ffffff; --danger:#b3392e; --ok:#2b7a4b;
   --c-camp:#2f6fb5; --c-wild:#d2691e; --c-rv:#7a4fb0; --c-shelter:#8a5a2b; --c-hut:#a8403a;
-  --c-picnic:#b97a12; --c-view:#12858f; --c-water:#2e8bc0; --c-dump:#6b7280; --c-mine:#c2185b;
+  --c-picnic:#b97a12; --c-view:#12858f; --c-water:#2e8bc0; --c-dump:#6b7280;--c-peak:#7a6650; --c-mine:#c2185b;
   --shadow:0 1px 2px rgba(10,30,22,.18),0 6px 18px rgba(10,30,22,.16);
   --navh:56px; --nav-total:calc(var(--navh) + env(safe-area-inset-bottom,0px));
   --topbar:58px;
@@ -1000,7 +1000,7 @@ select,input[type=text],input[type=password],textarea{border:1px solid var(--lin
       <p>Kart og steder du har sett lagres på enheten. Nedlasting av områder er begrenset i antall fliser for å være snill mot kartserverne.</p>
       <h4>Kilder</h4>
       <p>Kartdata © Kartverket (CC BY 4.0), © OpenStreetMap-bidragsytere, © OpenTopoMap (CC-BY-SA), satellitt: Esri, Maxar, Earthstar Geographics.</p>
-      <p class="muted" style="font-size:12px">Versjon 2026-11-01 l</p>
+      <p class="muted" style="font-size:12px">Versjon 2026-11-01 m</p>
     </div>
     </div>
   </div>
@@ -1151,6 +1151,7 @@ const ICON={
   shelter:'<path d="M2 19V10L22 5v14h-3v-9L5 13.4V19H2Z"/>',
   hut:'<path d="M12 3 2 12h3v8h5v-5h4v5h5v-8h3L12 3Z"/>',
   fire:'<path d="M12 2c1 4 6 6 6 12a6 6 0 0 1-12 0c0-3 2-4 3-6 .5 1.5 1.5 2.5 2.5 2.5C12.5 8 11 5 12 2Z"/>',
+  peak:'<path d="M2 20 9.5 6l3.6 6.4L16 9l6 11H2Z"/>',
   eye:'<path fill-rule="evenodd" d="M12 5C6 5 2 12 2 12s4 7 10 7 10-7 10-7-4-7-10-7Zm0 10.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Z"/>',
   drop:'<path d="M12 2s7 7.5 7 12.5a7 7 0 0 1-14 0C5 9.5 12 2 12 2Z"/>',
   dump:'<path d="M10.5 3h3v9l3-3 2 2-6.5 6.5L5.5 11l2-2 3 3V3ZM4 19h16v2.5H4V19Z"/>',
@@ -1164,12 +1165,13 @@ const CATS={
   hut:{l:'Hytte / stue',c:'--c-hut',i:ICON.hut,on:1,w:3},
   picnic:{l:'Rasteplass / bål',c:'--c-picnic',i:ICON.fire,on:1,w:2},
   view:{l:'Utsikt',c:'--c-view',i:ICON.eye,on:1,w:2},
+  peak:{l:'Fjelltopp',c:'--c-peak',i:ICON.peak,on:0,w:1},
   water:{l:'Drikkevann',c:'--c-water',i:ICON.drop,on:0,w:1},
   dump:{l:'Tømmestasjon',c:'--c-dump',i:ICON.dump,on:0,w:1}
 };
 const onCats=Object.assign(Object.fromEntries(Object.entries(CATS).map(([k,v])=>[k,!!v.on])),ls.get('cats',{}));
 const PTYPES={wild:'Vill camping',camp:'Campingplass',fire:'Bålplass',view:'Utsikt',water:'Vann',other:'Annet'};
-const PT_FROM_CAT={wild:'wild',camp:'camp',rv:'camp',shelter:'wild',hut:'other',picnic:'fire',view:'view',water:'water',dump:'other'};
+const PT_FROM_CAT={wild:'wild',camp:'camp',rv:'camp',shelter:'wild',hut:'other',picnic:'fire',view:'view',peak:'view',water:'water',dump:'other'};
 function pinIcon(cat){
   const c=cat==='mine'?{c:'--c-mine',i:ICON.star}:CATS[cat];
   return L.divIcon({className:'pinwrap',html:'<div class="pin" style="background:var('+c.c+')"><svg viewBox="0 0 24 24" aria-hidden="true">'+c.i+'</svg></div>',iconSize:[30,30],iconAnchor:[15,15],popupAnchor:[0,-14]});
@@ -1179,6 +1181,7 @@ function classify(t){
   if(t.tourism==='caravan_site')return'rv';
   if(t.tourism==='wilderness_hut'||t.tourism==='alpine_hut')return'hut';
   if(t.tourism==='viewpoint')return'view';
+  if(t.natural==='peak'&&(t.name||t['name:no']||t['name:sv']))return'peak';
   if(t.amenity==='shelter')return'shelter';
   if(t.leisure==='firepit'||t.leisure==='picnic_site')return'picnic';
   if(t.amenity==='drinking_water')return'water';
@@ -1327,6 +1330,7 @@ const QUERY=(s,w,n,e)=>{const bb='('+s+','+w+','+n+','+e+')';return'[out:json][t
   'nwr["tourism"~"^(camp_site|caravan_site|wilderness_hut|alpine_hut|viewpoint)$"]'+bb+';'+
   'nwr["amenity"="shelter"]["shelter_type"~"^(basic_hut|lean_to|weather_shelter|picnic_shelter|rock_shelter)$"]'+bb+';'+
   'nwr["leisure"~"^(firepit|picnic_site)$"]'+bb+';'+
+  'node["natural"="peak"]["name"]'+bb+';'+
   'nwr["amenity"~"^(drinking_water|sanitary_dump_station)$"]'+bb+';'+
   ');out center tags 1500;'};
 async function overpass(q){
@@ -1358,7 +1362,7 @@ async function fetchCell(i,j){
     if(!cat)continue;
     out.push({id:el.type[0]+el.id,lat:+lat.toFixed(6),lon:+lon.toFixed(6),cat,tags:pickTags(t)});
   }
-  await DB.put('cells','c:'+i+':'+j,{t:Date.now(),items:out});
+  await DB.put('cells','c2:'+i+':'+j,{t:Date.now(),items:out});
   return out;
 }
 const addItems=arr=>arr.forEach(it=>items.set(it.id,it));
@@ -1385,7 +1389,7 @@ async function loadArea(){
   cells.sort((a,b2)=>Math.hypot(a[0]*CELL_LAT-c.lat,a[1]*CELL_LON-c.lng)-Math.hypot(b2[0]*CELL_LAT-c.lat,b2[1]*CELL_LON-c.lng));
   const need=[];
   for(const [i,j] of cells){
-    const k='c:'+i+':'+j;
+    const k='c2:'+i+':'+j;
     if(loaded.has(k)&&Date.now()-loaded.get(k)<6e5)continue;
     const c2=await DB.get('cells',k);
     if(c2){addItems(c2.items);loaded.set(k,Date.now());if(Date.now()-c2.t<TTL||!navigator.onLine)continue}
@@ -1657,7 +1661,7 @@ async function downloadArea(){
     let ci=0,cd=0;
     const cw=async()=>{
       while(ci<cells.length&&!dl.cancel){
-        const [i,j]=cells[ci++],k='c:'+i+':'+j,ex=await DB.get('cells',k);
+        const [i,j]=cells[ci++],k='c2:'+i+':'+j,ex=await DB.get('cells',k);
         if(!ex||Date.now()-ex.t>TTL){try{addItems(await fetchCell(i,j))}catch(e){failed++}}
         else addItems(ex.items);
         cd++;$('#offProg').textContent='Steder: '+cd+' av '+cells.length;
@@ -1718,7 +1722,7 @@ async function getWeather(lat,lon){
 async function ensureAround(lat,lon){
   const b=L.latLngBounds([lat-.3,lon-.6],[lat+.3,lon+.6]),need=[];
   for(const [i,j] of cellsFor(b)){
-    const k='c:'+i+':'+j;
+    const k='c2:'+i+':'+j;
     if(loaded.has(k)&&Date.now()-loaded.get(k)<6e5)continue;
     const c=await DB.get('cells',k);
     if(c){addItems(c.items);loaded.set(k,Date.now());if(Date.now()-c.t<TTL||!navigator.onLine)continue}
@@ -1732,6 +1736,22 @@ async function ensureAround(lat,lon){
 
 /* ---------- rute til destinasjon ---------- */
 const STOPW=new Set(['i','idag','dag','kveld','en','et','den','det','og','som','med','for','på','natt','natta','morgen','ved','fra','meg','nå','jeg','at','å','der','hvor','så','da']);
+const NOUNS=new Set(['vann','vannet','skogen','skog','fjellet','fjell','fjelltopp','topp','toppen','utsikt','bål','elva','elv','sjø','sjøen','bilen','veien','vei','ly','gapahuk','camping','plass','plassen','kaffe','natta','nærheten','området','toppene','tjern','innsjø','dag','kveld','natt','morgen']);
+function findNear(q){
+  q=q.replace(/\b(?:i\s+)?n[æe]r\w*\s+(?:av\s+)?/gi,'nær ');
+  const out=[];
+  for(const m of q.matchAll(/\b(?:n[æe]r\w*(?:\s+av)?|ved|rundt|omkring|i|på)\s+([a-zæøåA-ZÆØÅ][\wæøåÆØÅ.-]*(?:\s+[a-zæøåA-ZÆØÅ][\wæøåÆØÅ.-]*)?)/gi)){
+    const w=m[1].split(/\s+/);
+    const a=w[0].toLowerCase();
+    if(STOPW.has(a)||NOUNS.has(a))continue;
+    const c=[];
+    if(w.length>1&&!STOPW.has(w[1].toLowerCase())&&!NOUNS.has(w[1].toLowerCase()))c.push(w[0]+' '+w[1]);
+    c.push(w[0]);
+    out.push(c);
+    if(out.length>=2)break;
+  }
+  return out;
+}
 function findDest(q){
   const m=q.match(/(?:\btil|\bmot|\bretning|\bretningen)\s+([a-zæøåA-ZÆØÅ][\wæøåÆØÅ.-]*(?:\s+[a-zæøåA-ZÆØÅ][\wæøåÆØÅ.-]*)?)/i);
   if(!m)return[];
@@ -1746,9 +1766,10 @@ async function fetchJson(url,ms){
   const ac=new AbortController(),to=setTimeout(()=>ac.abort(),ms);
   try{const r=await fetch(url,{signal:ac.signal});if(!r.ok)return null;return await r.json()}catch(e){return null}finally{clearTimeout(to)}
 }
-async function geocode(names){
+async function geocode(names,onlyPlaces){
   for(const n of names){
     const j=await fetchJson('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=no,se&accept-language=nb&q='+encodeURIComponent(n),5000);
+    if(j&&j[0]&&onlyPlaces&&['place','boundary'].indexOf(j[0].class)<0)continue;
     if(j&&j[0])return{name:(j[0].display_name||n).split(',')[0],lat:+j[0].lat,lon:+j[0].lon};
   }
   return null;
@@ -1787,9 +1808,16 @@ async function buildCtx(from,q){
   if(from==='me'&&gps.pos){ref=[gps.pos.lat,gps.pos.lon];label='GPS-posisjon'}
   else{const c=map.getCenter();ref=[c.lat,c.lng];label='midten av kartet'}
   const cap=(pr,ms)=>Promise.race([pr,new Promise(r=>setTimeout(()=>r(null),ms))]);
-  /* destinasjon? */
+  /* sted i teksten? "til X" gir rute, "nær X" flytter søket dit */
   let dest=null,pts=null,warn='';
   const dn=findDest(q||'');
+  if(!dn.length&&navigator.onLine){
+    for(const cand of findNear(q||'')){
+      setAiStatus('Finner stedet …');
+      const g=await geocode(cand,true);
+      if(g){if(dist(ref,[g.lat,g.lon])>15000){ref=[g.lat,g.lon];label='området rundt '+g.name}break}
+    }
+  }
   if(dn.length&&navigator.onLine){
     setAiStatus('Finner rute …');
     const g=await geocode(dn);
@@ -1816,10 +1844,13 @@ async function buildCtx(from,q){
     items.forEach(it=>{const d=dist(ref,[it.lat,it.lon]);if(d<=100000)arr.push({it,d})});
     arr.sort((a,b)=>score(b.it,b.d)-score(a.it,a.d));
   }
+  const wantPk=/topp|tind|fjell|summit|peak|bestig|tur\b/i.test(q||'');
+  if(wantPk)arr.sort((a,b)=>((b.it.cat==='peak')-(a.it.cat==='peak')));
   for(const {it,d,km} of arr){
     if(lookup.size>=30)break;
     const k=it.cat;cnt[k]=(cnt[k]||0)+1;
     if((k==='water'||k==='dump')&&cnt[k]>4)continue;
+    if(k==='peak'&&cnt[k]>(wantPk?12:2))continue;
     const tg=tagList(it);
     lines.push(it.id+' | '+CATS[k].l+' | '+itemName(it)+' | '+(dest?'km '+Math.round(km)+' fra start, '+(d<1000?Math.round(d)+' m':(d/1000).toFixed(1)+' km')+' fra veien':fmtDist(d)+' '+compass(bearing(ref,[it.lat,it.lon])))+(tg.length?' | '+tg.join(', '):''));
     lookup.set(it.id,{id:it.id,name:itemName(it),cat:k,lat:it.lat,lon:it.lon,chips:tg,km:dest?km:undefined});
