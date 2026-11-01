@@ -673,151 +673,173 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
 </style>
 <style>
-/* Layout: fullskjerm-kart, flytende knapper øverst til høyre, bunnpanel med faner. */
+/* Design "Stikka": kart først, ett AI-søk øverst, lavt og lett bunnark. */
 :root{
-  --bg:#eef1ee; --panel:#fbfcfb; --panel2:#e3e9e5; --fg:#142019; --muted:#5a6a61; --line:#cdd7d1;
-  --accent:#1d6b52; --accent-fg:#ffffff; --danger:#b3392e; --ok:#2b7a4b;
+  --bg:#e6ece8; --panel:#f8f9f6; --panel2:#e9eeea; --fg:#10231c; --muted:#5b6b63; --line:#d3dcd6;
+  --accent:#17594a; --accent-fg:#ffffff; --signal:#d8432b; --signal-fg:#ffffff; --danger:#b3392e; --ok:#2b7a4b;
   --c-camp:#2f6fb5; --c-wild:#d2691e; --c-rv:#7a4fb0; --c-shelter:#8a5a2b; --c-hut:#a8403a;
   --c-picnic:#b97a12; --c-view:#12858f; --c-water:#2e8bc0; --c-dump:#6b7280; --c-mine:#c2185b;
-  --shadow:0 2px 10px rgba(0,0,0,.28);
-  --navh:64px; --nav-total:calc(var(--navh) + env(safe-area-inset-bottom,0px));
+  --shadow:0 1px 2px rgba(10,30,22,.18),0 6px 18px rgba(10,30,22,.16);
+  --navh:56px; --nav-total:calc(var(--navh) + env(safe-area-inset-bottom,0px));
+  --topbar:58px;
 }
 @media (prefers-color-scheme:dark){
   :root{
-    --bg:#10181a; --panel:#172124; --panel2:#202c30; --fg:#e6efe9; --muted:#93a59b; --line:#2b393d;
-    --accent:#5cbf9a; --accent-fg:#06231a; --danger:#e0675b; --ok:#6fcf97;
+    --bg:#0f1816; --panel:#16211e; --panel2:#1f2d29; --fg:#e8f1ec; --muted:#97aaa1; --line:#2a3b36;
+    --accent:#6fd0a8; --accent-fg:#052018; --signal:#ff7a59; --signal-fg:#2a0a02; --danger:#e0675b; --ok:#6fcf97;
+    --shadow:0 1px 2px rgba(0,0,0,.5),0 8px 22px rgba(0,0,0,.45);
     color-scheme:dark;
   }
 }
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
-body{background:var(--bg);color:var(--fg);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden;overscroll-behavior:none;-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--fg);font:15px/1.42 "Avenir Next","Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,Roboto,sans-serif;overflow:hidden;overscroll-behavior:none;-webkit-text-size-adjust:100%}
 button,input,select,textarea{font:inherit;color:inherit}
-button{cursor:pointer}
+button{cursor:pointer;-webkit-tap-highlight-color:transparent}
 [hidden]{display:none!important}
 button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .muted{color:var(--muted)}
 #map{position:fixed;inset:0;background:var(--panel2);z-index:0}
 .leaflet-top{top:env(safe-area-inset-top,0px)}
+.leaflet-top.leaflet-left{top:calc(env(safe-area-inset-top,0px) + var(--topbar) + 96px)}
 .leaflet-left{left:env(safe-area-inset-left,0px)}
 .leaflet-bottom{bottom:var(--nav-total)}
 .leaflet-control-attribution{font-size:10px;background:color-mix(in srgb,var(--panel) 80%,transparent)!important;color:var(--muted)!important}
 .leaflet-control-attribution a{color:var(--muted)!important}
-.leaflet-bar a{background:var(--panel);color:var(--fg);border-color:var(--line)}
+.leaflet-bar{border:0!important;box-shadow:var(--shadow)!important;border-radius:12px;overflow:hidden}
+.leaflet-bar a{background:var(--panel);color:var(--fg);border-color:var(--line);width:36px;height:36px;line-height:36px}
 .leaflet-bar a:hover{background:var(--panel2);color:var(--fg)}
 .leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--panel);color:var(--fg)}
+.leaflet-popup-content-wrapper{border-radius:14px}
 .leaflet-popup-content{margin:12px 14px;font-size:14px;min-width:190px}
 .leaflet-container a.leaflet-popup-close-button{color:var(--muted)}
 
+/* AI-linje øverst: alltid ett trykk unna */
+#top{position:fixed;z-index:1150;top:calc(8px + env(safe-area-inset-top,0px));left:max(10px,env(safe-area-inset-left,0px));right:max(10px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:6px;pointer-events:none}
+#top>*{pointer-events:auto}
+#ask{display:flex;align-items:center;gap:6px;background:var(--panel);border-radius:999px;box-shadow:var(--shadow);padding:5px 5px 5px 16px;min-height:48px}
+#ask:focus-within{box-shadow:0 0 0 2px var(--signal),var(--shadow)}
+#aiQ{flex:1;min-width:0;border:0!important;background:none!important;padding:8px 0!important;border-radius:0!important;resize:none;height:38px;line-height:22px;font-size:16px;overflow:hidden}
+#aiQ::placeholder{color:var(--muted)}
+#aiQ:focus-visible{outline:none}
+#aiGo{flex:none;width:40px;height:40px;border-radius:50%;border:0;background:var(--signal);color:var(--signal-fg);display:grid;place-items:center;padding:0}
+#aiGo svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2.3;stroke-linecap:round;stroke-linejoin:round}
+#aiGo:disabled{opacity:.55}
+#aiGo.busy svg{animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.aistat{align-self:flex-start;max-width:100%;font-size:13px;background:var(--panel);color:var(--fg);border-radius:12px;padding:6px 12px;box-shadow:var(--shadow)}
+.aistat.err{background:var(--danger);color:#fff}
+.qchips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:0 -10px;padding:2px 10px 4px}
+.qchips::-webkit-scrollbar{display:none}
+.qchips button{flex:none;border:0;background:var(--panel);box-shadow:var(--shadow);border-radius:99px;padding:7px 13px;font-size:13px;white-space:nowrap}
+body.asking .qchips{display:none}
+#readout{display:flex;align-items:center;gap:8px;align-self:flex-start;max-width:100%;background:color-mix(in srgb,var(--panel) 92%,transparent);border-radius:10px;box-shadow:var(--shadow);padding:4px 10px}
+.rd-main{min-width:0;display:flex;align-items:baseline;gap:10px}
+#coord{display:block;text-align:left;border:0;background:none;padding:0;font-variant-numeric:tabular-nums;font-weight:600;font-size:13px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#coord small{display:inline;font-weight:400;font-size:11px;color:var(--muted);margin-left:6px}
+.stats{display:flex;gap:0 10px;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.stats span:empty{display:none}
+#stRec{color:var(--danger);font-weight:700}
+.pill{font-size:11px;padding:1px 8px;border-radius:99px;border:1px solid var(--danger);color:var(--danger);white-space:nowrap}
+body[data-panel=tall] #top .qchips,body[data-panel=tall] #readout{display:none}
+body[data-panel=open] #fabs,body[data-panel=tall] #fabs{display:none}
+
 /* flytende knapper */
-#fabs{position:fixed;z-index:1000;bottom:calc(var(--nav-total) + 12px);right:max(10px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:10px}
-.fab{width:48px;height:48px;border-radius:50%;border:1px solid var(--line);background:var(--panel);box-shadow:var(--shadow);display:grid;place-items:center;padding:0}
-.fab svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-.fab.on{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
-.fab.rec{background:var(--danger);color:#fff;border-color:var(--danger)}
-#layerMenu{position:fixed;z-index:1000;bottom:calc(var(--nav-total) + 12px);max-height:calc(100vh - var(--nav-total) - 90px);overflow:auto;right:calc(max(10px,env(safe-area-inset-right,0px)) + 58px);width:min(260px,calc(100vw - 90px));background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:12px 14px}
-#layerMenu h4{margin:0 0 6px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
-#layerMenu label{display:flex;gap:10px;align-items:center;padding:6px 0}
+#fabs{position:fixed;z-index:1000;bottom:calc(var(--nav-total) + 12px);right:max(10px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:8px}
+.fab{width:46px;height:46px;border-radius:50%;border:0;background:var(--panel);box-shadow:var(--shadow);display:grid;place-items:center;padding:0}
+.fab svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.fab.on{background:var(--accent);color:var(--accent-fg)}
+.fab.rec{background:var(--danger);color:#fff}
+#layerMenu{position:fixed;z-index:1000;bottom:calc(var(--nav-total) + 12px);max-height:calc(100vh - var(--nav-total) - 150px);overflow:auto;right:calc(max(10px,env(safe-area-inset-right,0px)) + 56px);width:min(268px,calc(100vw - 90px));background:var(--panel);border-radius:16px;box-shadow:var(--shadow);padding:12px 14px}
+#layerMenu h4{margin:0 0 4px;font-size:13px;font-weight:700}
+#layerMenu label{display:flex;gap:10px;align-items:center;padding:7px 0}
 #layerMenu hr{border:0;border-top:1px solid var(--line);margin:8px 0}
 #layerMenu .note{font-size:12px;color:var(--muted);margin:2px 0 0}
-#pick{position:fixed;z-index:1200;left:50%;transform:translateX(-50%);top:calc(12px + env(safe-area-inset-top,0px));background:var(--accent);color:var(--accent-fg);padding:10px 14px;border-radius:12px;box-shadow:var(--shadow);display:flex;gap:12px;align-items:center;max-width:calc(100vw - 90px)}
+#pick{position:fixed;z-index:1200;left:50%;transform:translateX(-50%);top:calc(70px + env(safe-area-inset-top,0px));background:var(--accent);color:var(--accent-fg);padding:10px 14px;border-radius:12px;box-shadow:var(--shadow);display:flex;gap:12px;align-items:center;max-width:calc(100vw - 30px)}
 #pick button{border:1px solid currentColor;background:none;border-radius:8px;padding:4px 10px}
 #pick[hidden],#layerMenu[hidden]{display:none}
 body.picking #map{cursor:crosshair}
 
-/* posisjonskort øverst */
-#readout{position:fixed;z-index:1000;top:calc(10px + env(safe-area-inset-top,0px));left:calc(max(10px,env(safe-area-inset-left,0px)) + 44px);right:max(10px,env(safe-area-inset-right,0px));display:flex;align-items:flex-start;gap:8px;background:color-mix(in srgb,var(--panel) 94%,transparent);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:6px 12px 7px}
-.rd-main{flex:1;min-width:0}
-#coord{display:block;width:100%;text-align:left;border:0;background:none;padding:0;font-variant-numeric:tabular-nums;font-weight:700;font-size:15px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#coord small{display:block;font-weight:400;font-size:11px;color:var(--muted);line-height:1.2}
-.stats{display:flex;flex-wrap:wrap;gap:0 10px;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;margin-top:1px}
-.stats span:empty{display:none}
-#stRec{color:var(--danger);font-weight:700}
-.pill{font-size:11px;padding:2px 8px;border-radius:99px;border:1px solid var(--danger);color:var(--danger);white-space:nowrap}
-body[data-panel=tall] #readout,body[data-panel=open] #fabs,body[data-panel=tall] #fabs{display:none}
-
-/* bunnmeny */
-#nav{position:fixed;left:0;right:0;bottom:0;z-index:1200;height:var(--nav-total);padding:0 env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px);display:grid;grid-template-columns:repeat(5,1fr);background:var(--panel);border-top:1px solid var(--line);box-shadow:0 -2px 12px rgba(0,0,0,.18)}
-#nav button{position:relative;border:0;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--muted);font-size:11px;font-weight:500;padding:6px 0 4px;min-width:0}
-#nav .ic{width:58px;height:30px;border-radius:15px;display:grid;place-items:center;transition:background .15s}
-#nav svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+/* bunnmeny: flat, kompakt */
+#nav{position:fixed;left:0;right:0;bottom:0;z-index:1200;height:var(--nav-total);padding:0 env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px);display:grid;grid-template-columns:repeat(5,1fr);background:var(--panel);box-shadow:0 -1px 0 var(--line)}
+#nav button{position:relative;border:0;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--muted);font-size:11px;font-weight:500;padding:4px 0;min-width:0}
+#nav .ic{width:52px;height:28px;border-radius:14px;display:grid;place-items:center;transition:background .15s}
+#nav svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
 #nav button.on{color:var(--accent);font-weight:700}
-#nav button.on .ic{background:color-mix(in srgb,var(--accent) 18%,transparent)}
-.badge{position:absolute;top:7px;left:calc(50% + 9px);width:11px;height:11px;border-radius:50%;background:var(--danger);border:2px solid var(--panel)}
+#nav button.on .ic{background:color-mix(in srgb,var(--accent) 16%,transparent)}
+.badge{position:absolute;top:5px;left:calc(50% + 8px);width:10px;height:10px;border-radius:50%;background:var(--danger);border:2px solid var(--panel)}
 
-/* panel over menyen */
-#panel{position:fixed;left:0;right:0;bottom:var(--nav-total);z-index:1100;background:var(--panel);border-radius:20px 20px 0 0;box-shadow:0 -6px 24px rgba(0,0,0,.3);display:flex;flex-direction:column;height:56vh;height:56dvh;max-height:calc(100vh - var(--nav-total) - 70px)}
-#panel[data-state=tall]{height:84vh;height:84dvh}
+/* bunnark: lavere, så kartet fortsatt er med */
+#panel{position:fixed;left:0;right:0;bottom:var(--nav-total);z-index:1100;background:var(--panel);border-radius:22px 22px 0 0;box-shadow:0 -4px 24px rgba(10,30,22,.2);display:flex;flex-direction:column;height:46vh;height:46dvh;max-height:calc(100vh - var(--nav-total) - 120px);transition:height .22s cubic-bezier(.2,.8,.2,1)}
+#panel[data-state=tall]{height:calc(100vh - var(--nav-total) - 16px);height:calc(100dvh - var(--nav-total) - 16px)}
 #panel[data-state=closed]{display:none}
-#panelHead{position:relative;display:flex;align-items:center;gap:8px;padding:18px max(16px,env(safe-area-inset-left,0px)) 8px;touch-action:none}
-#panelHead::before{content:"";position:absolute;top:8px;left:50%;width:42px;height:4px;margin-left:-21px;border-radius:2px;background:var(--line)}
-#panelHead h2{flex:1;margin:0;font-size:19px;line-height:1.2}
-.ibtn{width:40px;height:40px;border-radius:50%;border:0;background:var(--panel2);display:grid;place-items:center;padding:0}
-.ibtn svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+#panelHead{position:relative;display:flex;align-items:center;gap:8px;padding:20px max(16px,env(safe-area-inset-left,0px)) 6px;touch-action:none}
+#panelHead::before{content:"";position:absolute;top:8px;left:50%;width:40px;height:4px;margin-left:-20px;border-radius:2px;background:var(--line)}
+#panelHead h2{flex:1;margin:0;font-size:20px;font-weight:700;letter-spacing:-.01em;line-height:1.2}
+.ibtn{width:38px;height:38px;border-radius:50%;border:0;background:var(--panel2);display:grid;place-items:center;padding:0}
+.ibtn svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
 #panel[data-state=tall] #panelExpand svg{transform:rotate(180deg)}
-#panes{flex:1;min-height:0;overflow:auto;padding:4px max(16px,env(safe-area-inset-left,0px)) 18px;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+#panes{flex:1;min-height:0;overflow:auto;padding:4px max(16px,env(safe-area-inset-left,0px)) 20px;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
 .seg{display:flex;background:var(--panel2);border-radius:12px;padding:3px;margin-bottom:12px}
 .seg button{flex:1;border:0;background:none;border-radius:9px;padding:8px 4px;color:var(--muted)}
-.seg button[aria-selected=true]{background:var(--panel);color:var(--fg);font-weight:700;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.seg button[aria-selected=true]{background:var(--panel);color:var(--fg);font-weight:700;box-shadow:0 1px 3px rgba(0,0,0,.18)}
 .row{display:flex;gap:8px;align-items:center;margin-bottom:10px}
 .row.wrap{flex-wrap:wrap}
-.btn{border:1px solid var(--line);background:var(--panel2);border-radius:10px;padding:9px 13px;line-height:1.1}
-.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg);font-weight:600}
+.btn{border:0;background:var(--panel2);border-radius:999px;padding:10px 15px;line-height:1.1;font-weight:500}
+.btn.primary{background:var(--accent);color:var(--accent-fg);font-weight:600}
 .btn.danger{color:var(--danger)}
-.btn.sm{padding:6px 10px;font-size:13px}
-.btn.big{padding:13px 16px;font-size:16px;flex:1}
-.btn.rec{background:var(--danger);border-color:var(--danger);color:#fff}
-select,input[type=text],input[type=password],textarea{border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:8px 10px;width:100%}
+.btn.sm{padding:8px 13px;font-size:13px}
+.btn.big{padding:14px 16px;font-size:16px;flex:1}
+.btn.rec{background:var(--danger);color:#fff}
+select,input[type=text],input[type=password],textarea{border:1px solid var(--line);background:var(--bg);border-radius:12px;padding:9px 11px;width:100%}
 .sel{display:flex;gap:8px;align-items:center;flex:1;font-size:13px;color:var(--muted)}
 .sel select{width:auto;flex:1}
-.chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px}
-.fchip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:none;border-radius:99px;padding:5px 10px;font-size:13px;color:var(--muted)}
+.chips{display:flex;gap:6px;margin:0 -16px 8px;padding:0 16px 2px;overflow-x:auto;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.fchip{flex:none;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:none;border-radius:99px;padding:6px 11px;font-size:13px;color:var(--muted)}
 .fchip i{width:10px;height:10px;border-radius:50%;background:var(--c);display:inline-block;opacity:.35}
 .fchip[aria-pressed=true]{color:var(--fg);border-color:var(--fg)}
 .fchip[aria-pressed=true] i{opacity:1}
 .tg{display:inline-block;font-size:12px;border-radius:6px;background:var(--panel2);padding:2px 7px;margin:2px 4px 2px 0;color:var(--fg)}
 .list{list-style:none;margin:0;padding:0}
-.item{display:flex;gap:11px;align-items:flex-start;padding:10px 0;border-top:1px solid var(--line)}
+.item{display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-top:1px solid var(--line)}
 .item:first-child{border-top:0}
 .item .body{flex:1;min-width:0}
-.item .t{font-weight:600;overflow-wrap:anywhere}
+.item .t{font-weight:650;overflow-wrap:anywhere}
 .item .s{font-size:13px;color:var(--muted)}
-.item .act{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
-.dot{flex:none;width:30px;height:30px;border-radius:50%;background:var(--c);display:grid;place-items:center;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35)}
+.item .act{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.dot{flex:none;width:32px;height:32px;border-radius:50%;background:var(--c);display:grid;place-items:center;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.3)}
 .dot svg{width:16px;height:16px;fill:#fff}
 .pinwrap{background:none;border:0}
 .pin{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;border:2px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.45)}
 .pin svg{width:16px;height:16px;fill:#fff}
-.card2{border:1px solid var(--line);border-radius:14px;padding:12px;margin:0 0 12px}
+.card2{background:var(--panel2);border-radius:16px;padding:14px;margin:0 0 12px}
 .card2 h4{margin:0 0 8px;font-size:15px}
-.bar{height:8px;border-radius:4px;background:var(--panel2);overflow:hidden;margin:8px 0}
+.bar{height:8px;border-radius:4px;background:var(--line);overflow:hidden;margin:8px 0}
 .bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
-.info h4{margin:14px 0 4px}
+.info h4{margin:16px 0 4px}
 .info p,.info li{font-size:14px;margin:4px 0}
 .info ul{padding-left:18px;margin:4px 0}
-.recstat{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
+.recstat{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums}
 .stars{color:var(--c-picnic);letter-spacing:1px}
 
 #errbar{position:fixed;z-index:1700;left:10px;right:10px;top:calc(10px + env(safe-area-inset-top,0px));background:var(--danger);color:#fff;border-radius:12px;padding:10px 14px;font-size:13px;box-shadow:var(--shadow)}
-/* AI-planlegger */
-.aibox{border:1px solid color-mix(in srgb,var(--accent) 45%,var(--line));background:color-mix(in srgb,var(--accent) 7%,var(--panel));border-radius:16px;padding:12px;margin:0 0 14px}
-.aibox h3{margin:0 0 2px;font-size:17px}
-.aibox .sun{font-size:12px;color:var(--muted);margin-bottom:8px}
-.aibox textarea{resize:vertical;min-height:60px}
-.qchips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
-.qchips button{border:1px solid var(--line);background:var(--panel);border-radius:99px;padding:6px 11px;font-size:13px}
-.aiset{margin-top:10px;font-size:13px}
-.aiset summary{cursor:pointer;color:var(--muted)}
-.aiset label{display:block;margin:8px 0 0;color:var(--muted)}
-.aiset input,.aiset select{margin-top:3px}
-.aistat{font-size:13px;color:var(--muted);margin:8px 0 0}
-.aistat.err{color:var(--danger)}
-.aires{margin-top:10px}
-.aires p{margin:0 0 8px}
-.aires h4{margin:12px 0 4px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
-.aires ol,.aires ul.tips{margin:4px 0;padding-left:20px}
-.aires li{margin:3px 0}
-.aires .why{font-size:13px;margin:2px 0 2px}
+
+/* AI-svar */
+.aires{margin:0 0 6px}
+.aires .lead{font-size:16px;line-height:1.45;margin:0 0 6px}
+.aires h4{margin:16px 0 6px;font-size:14px;font-weight:700}
+.aires .why{font-size:14px;margin:3px 0 2px}
+.aires ul.tips{margin:4px 0;padding-left:18px;color:var(--muted);font-size:14px}
+.aires ul.tips li{margin:3px 0}
+.aires ol.plan{list-style:none;margin:4px 0 0;padding:0 0 0 18px;border-left:2px solid var(--line)}
+.aires ol.plan li{position:relative;margin:0 0 10px}
+.aires ol.plan li::before{content:"";position:absolute;left:-24px;top:7px;width:10px;height:10px;border-radius:50%;background:var(--signal)}
+.aiempty{margin:0 0 14px;padding:14px;border-radius:16px;background:var(--panel2);font-size:14px;color:var(--muted)}
+.aiempty b{color:var(--fg)}
+.aiset label{display:block;margin:10px 0 0;font-size:13px;color:var(--muted)}
+.aiset input,.aiset select{margin-top:4px;color:var(--fg)}
+.aitest{display:flex;gap:10px;align-items:center;margin-top:12px}
 /* min posisjon */
 .me{position:relative;width:22px;height:22px}
 .me .core{position:absolute;inset:3px;border-radius:50%;background:#2b6cff;border:3px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.25),0 1px 6px rgba(0,0,0,.45)}
@@ -827,13 +849,13 @@ select,input[type=text],input[type=password],textarea{border:1px solid var(--lin
 /* modal og toast */
 #modal{position:fixed;inset:0;z-index:1500;background:rgba(0,0,0,.5);display:grid;align-items:end;justify-items:center;padding:0}
 #modal[hidden]{display:none}
-#modalCard{background:var(--panel);width:min(480px,100%);max-height:92vh;max-height:92dvh;overflow:auto;border-radius:18px 18px 0 0;padding:16px max(16px,env(safe-area-inset-left,0px)) calc(16px + env(safe-area-inset-bottom,0px))}
+#modalCard{background:var(--panel);width:min(480px,100%);max-height:92vh;max-height:92dvh;overflow:auto;border-radius:22px 22px 0 0;padding:18px max(16px,env(safe-area-inset-left,0px)) calc(16px + env(safe-area-inset-bottom,0px))}
 #modalCard h3{margin:0 0 10px}
 #modalCard label{display:block;font-size:13px;color:var(--muted);margin:0 0 10px}
 #modalCard label>*{margin-top:4px;color:var(--fg)}
 #toast{position:fixed;z-index:1600;left:50%;bottom:calc(var(--nav-total) + 14px);transform:translate(-50%,20px);background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:14px;opacity:0;pointer-events:none;transition:.2s;max-width:calc(100vw - 32px);text-align:center}
 #toast.show{opacity:1;transform:translate(-50%,0)}
-@media (prefers-reduced-motion:reduce){#toast,.bar i{transition:none}}
+@media (prefers-reduced-motion:reduce){#toast,.bar i,#panel{transition:none}#aiGo.busy svg{animation:none}}
 </style>
 </head>
 <body>
@@ -841,6 +863,26 @@ select,input[type=text],input[type=password],textarea{border:1px solid var(--lin
 
 <div id="errbar" hidden role="alert"></div>
 <div id="pick" hidden><span>Trykk på kartet for å velge sted</span><button id="pickCancel" type="button">Avbryt</button></div>
+
+<div id="top">
+  <form id="ask" role="search" onsubmit="return false">
+    <textarea id="aiQ" rows="1" enterkeyhint="send" aria-label="Hva skal du i dag?" placeholder="Hva skal du i dag?"></textarea>
+    <button id="aiGo" type="submit" aria-label="Spør"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+  </form>
+  <div class="aistat" id="aiStat" hidden role="status"></div>
+  <div class="qchips">
+    <button type="button" data-q="Finn en god plass å overnatte i kveld, helst ved vann og med mulighet for bål.">Overnatting i kveld</button>
+    <button type="button" data-q="Jeg vil ha en rolig stopp med bål og kaffe de neste par timene.">Bål og kaffe</button>
+    <button type="button" data-q="Hvor kan jeg få fin utsikt før det blir mørkt?">Utsikt før mørket</button>
+  </div>
+  <div id="readout" role="group" aria-label="Posisjon">
+    <div class="rd-main">
+      <button id="coord" type="button" aria-label="Koordinater, trykk for å bytte format">–</button>
+      <div class="stats"><span id="stRec"></span><span id="stAlt" title="Høyde"></span><span id="stSpd" title="Fart"></span><span id="stAcc" title="Nøyaktighet"></span></div>
+    </div>
+    <span id="net" class="pill" hidden>Offline</span>
+  </div>
+</div>
 
 <div id="fabs">
   <button class="fab" id="btnLayers" type="button" aria-label="Kartlag" title="Kartlag"><svg viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 13 9 5 9-5"/></svg></button>
@@ -861,14 +903,6 @@ select,input[type=text],input[type=password],textarea{border:1px solid var(--lin
   <label><input type="checkbox" id="ovTrk" checked> Spor</label>
 </div>
 
-<div id="readout" role="group" aria-label="Posisjon">
-  <div class="rd-main">
-    <button id="coord" type="button" aria-label="Koordinater, trykk for å bytte format">–</button>
-    <div class="stats"><span id="stRec"></span><span id="stAlt" title="Høyde"></span><span id="stSpd" title="Fart"></span><span id="stAcc" title="Nøyaktighet"></span></div>
-  </div>
-  <span id="net" class="pill" hidden>Offline</span>
-</div>
-
 <section id="panel" data-state="closed" aria-label="Panel">
   <header id="panelHead">
     <h2 id="panelTitle">Forslag</h2>
@@ -877,31 +911,10 @@ select,input[type=text],input[type=password],textarea{border:1px solid var(--lin
   </header>
   <div id="panes">
     <div class="pane" id="p-sug">
-      <div class="aibox" id="aiBox">
-        <h3>Hva skal du i dag?</h3>
-        <div class="sun" id="aiSun"></div>
-        <textarea id="aiQ" rows="2" aria-label="Hva vil du i dag" placeholder="F.eks. «overnatte ved vann med bålplass, maks to timers kjøring» eller «utsikt og kaffe før det blir mørkt»"></textarea>
-        <div class="qchips">
-          <button type="button" data-q="Finn en god plass å overnatte i kveld, helst ved vann og med mulighet for bål.">Overnatting i kveld</button>
-          <button type="button" data-q="Jeg vil ha en rolig stopp med bål og kaffe de neste par timene.">Bål og kaffe</button>
-          <button type="button" data-q="Hvor kan jeg få fin utsikt før det blir mørkt?">Utsikt før mørket</button>
-        </div>
-        <div class="row" style="margin:0">
-          <label class="sel"><select id="aiFrom" aria-label="Utgangspunkt"><option value="me">Fra min posisjon</option><option value="map">Fra kartsenter</option></select></label>
-          <button class="btn primary" id="aiGo" type="button">Spør</button>
-        </div>
-        <div class="aistat" id="aiStat" hidden></div>
-        <div class="aires" id="aiOut"></div>
-        <details class="aiset" id="aiSet">
-          <summary>AI-innstillinger</summary>
-          <label>Worker-adresse (anbefalt)<input type="text" id="aiWorker" autocomplete="off" placeholder="https://overland-ai.….workers.dev"></label>
-          <label>Tilgangskode til Worker<input type="password" id="aiToken" autocomplete="off"></label>
-          <label>Eller egen API-nøkkel (uten Worker)<input type="password" id="aiKey" autocomplete="off" placeholder="sk-ant-…"></label>
-          <label>Modell<select id="aiModel"><option value="claude-sonnet-5-5">Sonnet 5.5 (best)</option><option value="claude-haiku-5-5">Haiku 5.5 (raskest og billigst)</option></select></label>
-          <label>Om deg og kjøretøyet (valgfritt)<input type="text" id="aiAbout" placeholder="F.eks. terrengbil, sover i bilen, har bålutstyr"></label>
-          <div class="row" style="margin:10px 0 0"><button class="btn sm" id="aiTest" type="button">Test forbindelsen</button><span id="aiTestOut" class="muted" style="font-size:12px"></span></div>
-          <p class="muted" style="margin:8px 0 0;font-size:12px">Med Worker ligger API-nøkkelen skjult hos Cloudflare, og bare tilgangskoden lagres på denne enheten. Uten Worker lagres nøkkelen på enheten. Sett en bruksgrense på console.anthropic.com. Når du spør, sendes posisjonen din og stedslisten til Claude, og posisjonen til met.no for værvarsel.</p>
-        </details>
+      <div class="aires" id="aiOut"></div>
+      <div class="row">
+        <label class="sel"><select id="aiFrom" aria-label="Utgangspunkt for AI-søket"><option value="me">Fra min posisjon</option><option value="map">Fra kartsenter</option></select></label>
+        <span class="muted" id="aiSun" style="font-size:12px;text-align:right"></span>
       </div>
       <div class="row">
         <label class="sel">Sorter <select id="sugSort"><option value="rec">Anbefalt</option><option value="near">Nærmest</option></select></label>
@@ -932,7 +945,24 @@ select,input[type=text],input[type=password],textarea{border:1px solid var(--lin
     </div>
 
     <div class="pane" id="p-more" hidden>
-    <div class="seg" role="tablist"><button type="button" role="tab" data-sub="off" aria-selected="true">Offline-kart</button><button type="button" role="tab" data-sub="info" aria-selected="false">Info</button></div>
+    <div class="seg" role="tablist"><button type="button" role="tab" data-sub="off" aria-selected="true">Offline</button><button type="button" role="tab" data-sub="ai" aria-selected="false">AI</button><button type="button" role="tab" data-sub="info" aria-selected="false">Info</button></div>
+    <div id="p-ai" class="aiset" hidden>
+      <div class="card2">
+        <h4>Koble til AI</h4>
+        <label>Worker-adresse<input type="text" id="aiWorker" autocomplete="off" placeholder="https://overland-ai.….workers.dev"></label>
+        <label>Tilgangskode<input type="password" id="aiToken" autocomplete="off"></label>
+        <label>Modell<select id="aiModel"><option value="claude-sonnet-5-5">Sonnet 5.5 (best)</option><option value="claude-haiku-5-5">Haiku 5.5 (raskest og billigst)</option></select></label>
+        <label>Om deg og kjøretøyet (valgfritt)<input type="text" id="aiAbout" autocomplete="off" placeholder="F.eks. terrengbil, sover i bilen, har bålutstyr"></label>
+        <div class="aitest"><button class="btn primary" id="aiTest" type="button">Test forbindelsen</button><span id="aiTestOut" class="muted" style="font-size:13px"></span></div>
+      </div>
+      <details class="card2">
+        <summary>Bruk egen API-nøkkel i stedet</summary>
+        <label>API-nøkkel<input type="password" id="aiKey" autocomplete="off" placeholder="sk-ant-…"></label>
+        <p class="muted" style="margin:8px 0 0;font-size:12px">Nøkkelen lagres på denne enheten. Med Worker ligger den skjult hos Cloudflare.</p>
+      </details>
+      <p class="muted" style="font-size:12px">Når du spør, sendes posisjonen din og stedslisten til Claude, og posisjonen til met.no for værvarsel. Sett en bruksgrense på console.anthropic.com.</p>
+    </div>
+
     <div id="p-off">
       <p class="muted" style="margin-top:0;font-size:14px">Alt du ser på kartet lagres automatisk. Her laster du ned et helt område på forhånd, for fjellet uten dekning.</p>
       <div class="card2">
@@ -967,7 +997,7 @@ select,input[type=text],input[type=password],textarea{border:1px solid var(--lin
       <p>Kart og steder du har sett lagres på enheten. Nedlasting av områder er begrenset i antall fliser for å være snill mot kartserverne.</p>
       <h4>Kilder</h4>
       <p>Kartdata © Kartverket (CC BY 4.0), © OpenStreetMap-bidragsytere, © OpenTopoMap (CC-BY-SA), satellitt: Esri, Maxar, Earthstar Geographics.</p>
-      <p class="muted" style="font-size:12px">Versjon 2026-11-01 f</p>
+      <p class="muted" style="font-size:12px">Versjon 2026-11-01 g</p>
     </div>
     </div>
   </div>
@@ -1756,10 +1786,12 @@ function parseAi(txt){
     return{oppsummering:String(o.oppsummering||''),forslag:Array.isArray(o.forslag)?o.forslag:[],plan:Array.isArray(o.plan)?o.plan.map(String):[],tips:Array.isArray(o.tips)?o.tips.map(String):[]};
   }catch(e){return{oppsummering:txt.trim(),forslag:[],plan:[],tips:[]}}
 }
-function setAiStatus(m,err){const e=$('#aiStat');e.textContent=m;e.hidden=!m;e.classList.toggle('err',!!err)}
+function setAiStatus(m,err){const e=$('#aiStat');e.textContent=m;e.hidden=!m;e.classList.toggle('err',!!err);$('#aiGo').classList.toggle('busy',!!AI.busy)}
+function openAiSettings(){sub='ai';ls.set('sub','ai');showTab('more');if(panel.dataset.state==='closed')setState('open')}
+function autoGrow(){const q=$('#aiQ');q.style.height='38px';q.style.height=Math.min(q.scrollHeight,110)+'px'}
 function renderAi(last){
   const r=last.res,ref=last.ref;
-  let h='<p>'+esc(r.oppsummering)+'</p>';
+  let h='<p class="lead">'+esc(r.oppsummering)+'</p>';
   if(last.picks&&last.picks.length){
     h+='<h4>Forslag</h4><ul class="list">'+last.picks.map(p=>{
       const c=p.cat==='mine'?{c:'--c-mine',i:ICON.star,l:'Min plass'}:(CATS[p.cat]||{c:'--c-dump',i:ICON.dump,l:'Sted'});
@@ -1769,7 +1801,7 @@ function renderAi(last){
         '<div class="act"><button class="btn sm" data-act="aigo" data-lat="'+p.lat+'" data-lon="'+p.lon+'" data-name="'+esc(p.name)+'">Vis på kart</button><button class="btn sm primary" data-act="nav" data-lat="'+p.lat+'" data-lon="'+p.lon+'">Naviger</button></div></div></li>';
     }).join('')+'</ul>';
   }
-  if(r.plan.length)h+='<h4>Plan</h4><ol>'+r.plan.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ol>';
+  if(r.plan.length)h+='<h4>Plan</h4><ol class="plan">'+r.plan.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ol>';
   if(r.tips.length)h+='<h4>Tips</h4><ul class="tips">'+r.tips.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>';
   h+='<div class="muted" style="font-size:12px;margin-top:10px">«'+esc(last.q)+'» · '+fmtDate(last.t)+' · '+esc(last.meta)+'. Sjekk alltid åpningstider, vei og regler selv.</div>';
   $('#aiOut').innerHTML=h;
@@ -1779,9 +1811,9 @@ async function askAi(){
   if(AI.busy)return;
   const q=$('#aiQ').value.trim();
   if(!q){toast('Skriv hva du vil i dag');$('#aiQ').focus();return}
-  if(!AI.cfg.key&&!(AI.cfg.worker&&AI.cfg.token)){$('#aiSet').open=true;toast('Skriv inn tilgangskoden først');$('#aiToken').focus();return}
+  if(!AI.cfg.key&&!(AI.cfg.worker&&AI.cfg.token)){openAiSettings();toast('Skriv inn tilgangskoden først');return}
   if(!navigator.onLine){setAiStatus('Du er offline. AI trenger nett.',true);return}
-  AI.busy=true;$('#aiGo').disabled=true;setAiStatus('Henter steder og vær …');
+  AI.busy=true;$('#aiGo').disabled=true;document.body.classList.add('asking');$('#aiQ').blur();setAiStatus('Henter steder og vær …');
   try{
     const ctx=await buildCtx($('#aiFrom').value);
     setAiStatus('Claude planlegger …');
@@ -1789,9 +1821,9 @@ async function askAi(){
     const picks=[],seen={};
     res.forslag.forEach(f=>{const sn=ctx.lookup.get(String(f&&f.id));if(sn&&!seen[sn.id]&&picks.length<6){seen[sn.id]=1;picks.push(Object.assign({},sn,{hvorfor:String(f.hvorfor||'')}))}});
     const last={q,t:Date.now(),res,picks,ref:ctx.ref,meta:ctx.meta};
-    ls.set('ailast',last);renderAi(last);
+    ls.set('ailast',last);renderAi(last);showTab('sug');if(panel.dataset.state==='closed')setState('open');setTimeout(()=>{$('#panes').scrollTop=0},60);
   }catch(e){setAiStatus('Feil: '+e.message,true)}
-  finally{AI.busy=false;$('#aiGo').disabled=false;renderAllSoon()}
+  finally{AI.busy=false;$('#aiGo').disabled=false;$('#aiGo').classList.remove('busy');document.body.classList.remove('asking');renderAllSoon()}
 }
 function bindAi(){
   const c=AI.cfg;
@@ -1799,7 +1831,8 @@ function bindAi(){
   if($('#aiModel').value!==c.model)$('#aiModel').value='claude-sonnet-5-5';
   const save=()=>{AI.cfg={key:$('#aiKey').value.trim(),worker:$('#aiWorker').value.trim(),token:$('#aiToken').value.trim(),model:$('#aiModel').value,about:$('#aiAbout').value.trim()};ls.set('ai',AI.cfg)};
   ['aiKey','aiWorker','aiToken','aiModel','aiAbout'].forEach(id=>$('#'+id).addEventListener('change',save));
-  $('#aiGo').onclick=()=>{save();askAi()};
+  $('#ask').addEventListener('submit',e=>{e.preventDefault();save();askAi()});
+  $('#aiQ').addEventListener('input',autoGrow);
   $('#aiTest').onclick=async()=>{
     save();const o=$('#aiTestOut');
     if(!AI.cfg.key&&!(AI.cfg.worker&&AI.cfg.token)){o.textContent='Skriv inn tilgangskoden først.';return}
@@ -1807,11 +1840,12 @@ function bindAi(){
     try{const t=await askClaude('Svar bare med ordet OK.',{max_tokens:20,system:'Svar kort.'});o.textContent='Forbindelsen virker. Svar: '+t.trim().slice(0,30)}
     catch(e){o.textContent='Feil: '+e.message}
   };
-  $('#aiQ').addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){save();askAi()}});
-  $$('.qchips button').forEach(b=>b.onclick=()=>{$('#aiQ').value=b.dataset.q;save();askAi()});
-  if(!AI.cfg.key&&!AI.cfg.token)$('#aiSet').open=true;
+  $('#aiQ').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();save();askAi()}});
+  $$('.qchips button').forEach(b=>b.onclick=()=>{$('#aiQ').value=b.dataset.q;autoGrow();save();askAi()});
   const last=ls.get('ailast',null);
   if(last&&last.res&&last.res.oppsummering!==undefined){$('#aiQ').value=last.q||'';renderAi(last)}
+  else $('#aiOut').innerHTML='<div class="aiempty"><b>Skriv hva du vil i dag</b> i feltet øverst, så foreslår AI steder ut fra kartet, været og når sola går ned.</div>';
+  autoGrow();
   updateSun();
 }
 
@@ -1819,7 +1853,7 @@ function bindAi(){
 const panel=$('#panel'),TABS=['sug','mine','trk','more'],TITLES={sug:'Forslag',mine:'Mine plasser',trk:'Spor'};
 let tab=ls.get('tab','sug'),sub=ls.get('sub','off');
 if(TABS.indexOf(tab)<0)tab='sug';
-if(sub!=='off'&&sub!=='info')sub='off';
+if(sub!=='off'&&sub!=='info'&&sub!=='ai')sub='off';
 function updateNav(){
   const closed=panel.dataset.state==='closed';
   $$('#nav button').forEach(b=>{
@@ -1838,7 +1872,7 @@ function setTitle(){$('#panelTitle').textContent=tab==='more'?'Mer':TITLES[tab]}
 function showSub(x){
   sub=x;ls.set('sub',x);
   $$('#p-more .seg button').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.sub===x)));
-  $('#p-off').hidden=x!=='off';$('#p-info').hidden=x!=='info';
+  $('#p-off').hidden=x!=='off';$('#p-ai').hidden=x!=='ai';$('#p-info').hidden=x!=='info';
   if(x==='off'){$('#offLayer').textContent=BASES[baseKey].name;offEstimate()}
   setTitle();
 }
