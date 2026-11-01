@@ -767,7 +767,7 @@ body[data-panel=tall] #readout,body[data-panel=open] #fabs,body[data-panel=tall]
 .btn.sm{padding:6px 10px;font-size:13px}
 .btn.big{padding:13px 16px;font-size:16px;flex:1}
 .btn.rec{background:var(--danger);border-color:var(--danger);color:#fff}
-select,input[type=text],textarea{border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:8px 10px;width:100%}
+select,input[type=text],input[type=password],textarea{border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:8px 10px;width:100%}
 .sel{display:flex;gap:8px;align-items:center;flex:1;font-size:13px;color:var(--muted)}
 .sel select{width:auto;flex:1}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px}
@@ -798,6 +798,25 @@ select,input[type=text],textarea{border:1px solid var(--line);background:var(--b
 .recstat{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
 .stars{color:var(--c-picnic);letter-spacing:1px}
 
+/* AI-planlegger */
+.aibox{border:1px solid color-mix(in srgb,var(--accent) 45%,var(--line));background:color-mix(in srgb,var(--accent) 7%,var(--panel));border-radius:16px;padding:12px;margin:0 0 14px}
+.aibox h3{margin:0 0 2px;font-size:17px}
+.aibox .sun{font-size:12px;color:var(--muted);margin-bottom:8px}
+.aibox textarea{resize:vertical;min-height:60px}
+.qchips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.qchips button{border:1px solid var(--line);background:var(--panel);border-radius:99px;padding:6px 11px;font-size:13px}
+.aiset{margin-top:10px;font-size:13px}
+.aiset summary{cursor:pointer;color:var(--muted)}
+.aiset label{display:block;margin:8px 0 0;color:var(--muted)}
+.aiset input,.aiset select{margin-top:3px}
+.aistat{font-size:13px;color:var(--muted);margin:8px 0 0}
+.aistat.err{color:var(--danger)}
+.aires{margin-top:10px}
+.aires p{margin:0 0 8px}
+.aires h4{margin:12px 0 4px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.aires ol,.aires ul.tips{margin:4px 0;padding-left:20px}
+.aires li{margin:3px 0}
+.aires .why{font-size:13px;margin:2px 0 2px}
 /* min posisjon */
 .me{position:relative;width:22px;height:22px}
 .me .core{position:absolute;inset:3px;border-radius:50%;background:#2b6cff;border:3px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.25),0 1px 6px rgba(0,0,0,.45)}
@@ -855,6 +874,29 @@ select,input[type=text],textarea{border:1px solid var(--line);background:var(--b
   </header>
   <div id="panes">
     <div class="pane" id="p-sug">
+      <div class="aibox" id="aiBox">
+        <h3>Hva skal du i dag?</h3>
+        <div class="sun" id="aiSun"></div>
+        <textarea id="aiQ" rows="2" aria-label="Hva vil du i dag" placeholder="F.eks. «overnatte ved vann med bålplass, maks to timers kjøring» eller «utsikt og kaffe før det blir mørkt»"></textarea>
+        <div class="qchips">
+          <button type="button" data-q="Finn en god plass å overnatte i kveld, helst ved vann og med mulighet for bål.">Overnatting i kveld</button>
+          <button type="button" data-q="Jeg vil ha en rolig stopp med bål og kaffe de neste par timene.">Bål og kaffe</button>
+          <button type="button" data-q="Hvor kan jeg få fin utsikt før det blir mørkt?">Utsikt før mørket</button>
+        </div>
+        <div class="row" style="margin:0">
+          <label class="sel"><select id="aiFrom" aria-label="Utgangspunkt"><option value="me">Fra min posisjon</option><option value="map">Fra kartsenter</option></select></label>
+          <button class="btn primary" id="aiGo" type="button">Spør</button>
+        </div>
+        <div class="aistat" id="aiStat" hidden></div>
+        <div class="aires" id="aiOut"></div>
+        <details class="aiset" id="aiSet">
+          <summary>AI-innstillinger</summary>
+          <label>API-nøkkel fra Anthropic<input type="password" id="aiKey" autocomplete="off" placeholder="sk-ant-…"></label>
+          <label>Modell<select id="aiModel"><option value="claude-sonnet-5-5">Sonnet 5.5 (best)</option><option value="claude-haiku-5-5">Haiku 5.5 (raskest og billigst)</option></select></label>
+          <label>Om deg og kjøretøyet (valgfritt)<input type="text" id="aiAbout" placeholder="F.eks. terrengbil, sover i bilen, har bålutstyr"></label>
+          <p class="muted" style="margin:8px 0 0;font-size:12px">Nøkkelen lagres bare på denne enheten. Lag en på console.anthropic.com og sett en bruksgrense der. Når du spør, sendes posisjonen din og stedslisten til Claude, og posisjonen til met.no for værvarsel.</p>
+        </details>
+      </div>
       <div class="row">
         <label class="sel">Sorter <select id="sugSort"><option value="rec">Anbefalt</option><option value="near">Nærmest</option></select></label>
         <button class="btn" id="sugFind" type="button">Finn ved meg</button>
@@ -1083,7 +1125,7 @@ function classify(t){
 const KEEP=['name','name:no','name:sv','fee','drinking_water','toilets','shower','power_supply','capacity','openfire','fireplace','backcountry','website','contact:website','phone','contact:phone','opening_hours','operator','description','access','tents','caravans','motorhome','shelter_type','ele'];
 const pickTags=t=>{const o={};KEEP.forEach(k=>{if(t[k]!=null)o[k]=String(t[k]).slice(0,300)});return o};
 const itemName=it=>it.tags.name||it.tags['name:no']||it.tags['name:sv']||CATS[it.cat].l;
-function tagChips(it){
+function tagList(it){
   const t=it.tags,c=[];
   if(t.fee==='no')c.push('Gratis');else if(t.fee==='yes')c.push('Avgift');
   if(t.drinking_water==='yes')c.push('Drikkevann');
@@ -1096,8 +1138,9 @@ function tagChips(it){
   if(t.caravans==='yes'||t.motorhome==='yes')c.push('Bobil');
   if(t.ele&&!isNaN(+t.ele))c.push(Math.round(+t.ele)+' moh');
   if(t.access&&t.access!=='yes'&&t.access!=='permissive')c.push('Adgang: '+t.access);
-  return c.map(x=>'<span class="tg">'+esc(x)+'</span>').join('');
+  return c;
 }
+function tagChips(it){return tagList(it).map(x=>'<span class="tg">'+esc(x)+'</span>').join('')}
 function score(it,d){
   const t=it.tags;let s=CATS[it.cat].w;
   if(t.fee==='no')s+=1.5;
@@ -1558,6 +1601,172 @@ async function downloadArea(){
   renderAll();offEstimate();
 }
 
+/* ---------- AI-planlegger ---------- */
+const AI={cfg:Object.assign({key:'',model:'claude-sonnet-5-5',about:''},ls.get('ai',{})),busy:false};
+const COMPASS=['N','NØ','Ø','SØ','S','SV','V','NV'];
+function bearing(a,b){const dl=(b[1]-a[1])*rad,y=Math.sin(dl)*Math.cos(b[0]*rad),x=Math.cos(a[0]*rad)*Math.sin(b[0]*rad)-Math.sin(a[0]*rad)*Math.cos(b[0]*rad)*Math.cos(dl);return(Math.atan2(y,x)/rad+360)%360}
+const compass=deg=>COMPASS[Math.round(deg/45)%8];
+const hhmm=d=>d.toLocaleTimeString('nb-NO',{hour:'2-digit',minute:'2-digit'});
+function sunTimes(lat,lon,d){
+  const y=d.getFullYear(),m=d.getMonth(),dd=d.getDate(),base=Date.UTC(y,m,dd);
+  const doy=Math.floor((base-Date.UTC(y,0,0))/864e5),g=2*Math.PI/365*(doy-1);
+  const eqt=229.18*(0.000075+0.001868*Math.cos(g)-0.032077*Math.sin(g)-0.014615*Math.cos(2*g)-0.040849*Math.sin(2*g));
+  const dec=0.006918-0.399912*Math.cos(g)+0.070257*Math.sin(g)-0.006758*Math.cos(2*g)+0.000907*Math.sin(2*g)-0.002697*Math.cos(3*g)+0.00148*Math.sin(3*g);
+  const c=Math.cos(90.833*rad)/(Math.cos(lat*rad)*Math.cos(dec))-Math.tan(lat*rad)*Math.tan(dec);
+  if(c>1)return{polar:'night'};
+  if(c<-1)return{polar:'day'};
+  const ha=Math.acos(c)/rad;
+  return{rise:new Date(base+(720-4*(lon+ha)-eqt)*60000),set:new Date(base+(720-4*(lon-ha)-eqt)*60000)};
+}
+function sunText(lat,lon){
+  const s=sunTimes(lat,lon,new Date());
+  if(s.polar)return s.polar==='day'?'midnattssol, sola går ikke ned':'mørketid, sola står ikke opp';
+  return'sol opp '+hhmm(s.rise)+', ned '+hhmm(s.set);
+}
+function updateSun(){const r=refPoint();$('#aiSun').textContent=sunText(r[0],r[1])}
+async function getWeather(lat,lon){
+  try{
+    const ac=new AbortController(),to=setTimeout(()=>ac.abort(),8000);
+    const r=await fetch('https://api.met.no/weatherapi/locationforecast/2.0/compact?lat='+lat.toFixed(3)+'&lon='+lon.toFixed(3),{signal:ac.signal});
+    clearTimeout(to);
+    if(!r.ok)return null;
+    const j=await r.json(),ts=(j.properties&&j.properties.timeseries)||[],now=Date.now(),out=[];
+    let last=0;
+    for(const t of ts){
+      const tm=Date.parse(t.time);
+      if(tm<now-36e5)continue;
+      if(tm>now+30*36e5)break;
+      if(out.length&&tm-last<3*36e5-6e4)continue;
+      last=tm;
+      const dt=new Date(tm),d=t.data.instant.details,n=t.data.next_1_hours||t.data.next_6_hours||{};
+      out.push((dt.getDate()!==new Date().getDate()?'i morgen ':'')+hhmm(dt)+': '+Math.round(d.air_temperature)+'°C, vind '+Math.round(d.wind_speed)+' m/s'+(n.details&&n.details.precipitation_amount!=null?', nedbør '+n.details.precipitation_amount+' mm':'')+(n.summary?', '+n.summary.symbol_code.replace(/_/g,' '):''));
+    }
+    return out.length?out:null;
+  }catch(e){return null}
+}
+async function ensureAround(lat,lon){
+  const b=L.latLngBounds([lat-.3,lon-.6],[lat+.3,lon+.6]),need=[];
+  for(const [i,j] of cellsFor(b)){
+    const k='c:'+i+':'+j;
+    if(loaded.has(k)&&Date.now()-loaded.get(k)<6e5)continue;
+    const c=await DB.get('cells',k);
+    if(c){addItems(c.items);loaded.set(k,Date.now());if(Date.now()-c.t<TTL||!navigator.onLine)continue}
+    else if(!navigator.onLine)continue;
+    need.push([i,j,k]);
+  }
+  need.sort((a,b2)=>Math.hypot(a[0]*CELL_LAT-lat,a[1]*CELL_LON-lon)-Math.hypot(b2[0]*CELL_LAT-lat,b2[1]*CELL_LON-lon));
+  net.failed=0;
+  if(need.length)await runQueue(need.slice(0,12));
+}
+async function buildCtx(from){
+  let ref,label;
+  if(from==='me'&&gps.pos){ref=[gps.pos.lat,gps.pos.lon];label='GPS-posisjon'}
+  else{const c=map.getCenter();ref=[c.lat,c.lng];label='midten av kartet'}
+  await ensureAround(ref[0],ref[1]);
+  const wx=await getWeather(ref[0],ref[1]);
+  const lookup=new Map(),lines=[],arr=[],cnt={};
+  items.forEach(it=>{const d=dist(ref,[it.lat,it.lon]);if(d<=100000)arr.push({it,d})});
+  arr.sort((a,b)=>score(b.it,b.d)-score(a.it,a.d));
+  for(const {it,d} of arr){
+    if(lookup.size>=45)break;
+    const k=it.cat;cnt[k]=(cnt[k]||0)+1;
+    if((k==='water'||k==='dump')&&cnt[k]>4)continue;
+    const tg=tagList(it);
+    lines.push(it.id+' | '+CATS[k].l+' | '+itemName(it)+' | '+fmtDist(d)+' '+compass(bearing(ref,[it.lat,it.lon]))+(tg.length?' | '+tg.join(', '):''));
+    lookup.set(it.id,{id:it.id,name:itemName(it),cat:k,lat:it.lat,lon:it.lon,chips:tg});
+  }
+  const own=places.map(p=>({p,d:dist(ref,[p.lat,p.lon])})).filter(o=>o.d<=150000).sort((a,b)=>a.d-b.d).slice(0,15);
+  const ol=own.map(({p,d})=>{
+    const id='P:'+p.id,ty=PTYPES[p.type]||'Annet';
+    lookup.set(id,{id,own:true,name:p.name||'Uten navn',cat:'mine',lat:p.lat,lon:p.lon,chips:[ty].concat(p.rating?[p.rating+' av 5']:[])});
+    return id+' | '+ty+' | '+(p.name||'Uten navn')+' | '+fmtDist(d)+' '+compass(bearing(ref,[p.lat,p.lon]))+(p.note?' | '+p.note.slice(0,120):'');
+  });
+  const now=new Date(),tz=Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const text='<situasjon>\nTid: '+now.toLocaleString('nb-NO',{weekday:'long',day:'numeric',month:'long',hour:'2-digit',minute:'2-digit'})+' ('+tz+')\n'+
+    'Utgangspunkt: '+ref[0].toFixed(4)+', '+ref[1].toFixed(4)+' ('+label+')\n'+
+    'Sol: '+sunText(ref[0],ref[1])+'\n'+
+    'Vær: '+(wx?'\n'+wx.join('\n'):'ikke tilgjengelig')+
+    (AI.cfg.about?'\nOm brukeren og kjøretøyet: '+AI.cfg.about:'')+'\n</situasjon>\n'+
+    '<steder>\n'+(lines.join('\n')||'(ingen steder funnet i nærheten, kartdata mangler eller brukeren er offline)')+'\n</steder>\n'+
+    '<egne_plasser>\n'+(ol.join('\n')||'(ingen)')+'\n</egne_plasser>';
+  return{text,lookup,ref,meta:label+', '+lookup.size+' steder'+(wx?', værvarsel':'')};
+}
+const AI_SYS='Du er en praktisk reiseassistent i en kartapp for overlanding (bilbasert friluftsliv) i Norge og Sverige. Brukeren forteller hva hun eller han vil og skal i dag. Du får utgangspunkt, tid, soltider, værvarsel og en liste med steder fra kartdata (OpenStreetMap) og brukerens egne lagrede plasser, hver med id.\n\n'+
+'Regler:\n- Foreslå bare steder fra listene, og referer til dem med nøyaktig id. Ikke finn på steder, priser, åpningstider eller veiforhold. Er noe usikkert, si det.\n- Ta hensyn til lysforhold, vær og kjøretid. Avstandene er luftlinje: anslå vanlig kjøretid grovt (luftlinje ganger ca. 1,4 på vanlig vei) og si at det er et anslag.\n- Er det få eller ingen passende steder, si det ærlig. Nevner brukeren et annet område enn utgangspunktet, si at du bare ser steder nær utgangspunktet og at kartet kan flyttes dit.\n- Nevn regler (allemannsrett, bålforbud i Norge 15. april til 15. september) bare når det er relevant, og kort.\n- Skriv norsk bokmål, kort og konkret.\n\n'+
+'Svar KUN med gyldig JSON, uten markdown og uten tekst rundt, på denne formen:\n{"oppsummering": "2-3 setninger med anbefalingen", "forslag": [{"id": "id fra listene", "hvorfor": "kort begrunnelse"}], "plan": ["kort steg med omtrentlig klokkeslett"], "tips": ["kort tips"]}\n"forslag" har maks 5 steder, best først (kan være tom). "plan" har 3-7 steg (kan være tom hvis det ikke passer). "tips" har 0-4 punkter.';
+async function askClaude(user){
+  const ac=new AbortController(),to=setTimeout(()=>ac.abort(),70000);
+  try{
+    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',signal:ac.signal,headers:{'content-type':'application/json','x-api-key':AI.cfg.key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:AI.cfg.model,max_tokens:1800,system:AI_SYS,messages:[{role:'user',content:user}]})});
+    const j=await r.json().catch(()=>null);
+    if(!r.ok)throw new Error(r.status===401?'Ugyldig API-nøkkel':((j&&j.error&&j.error.message)||'Feil fra tjenesten ('+r.status+')'));
+    return((j&&j.content)||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
+  }catch(e){
+    if(e.name==='AbortError')throw new Error('Tok for lang tid. Prøv igjen.');
+    throw e;
+  }finally{clearTimeout(to)}
+}
+function parseAi(txt){
+  const s=txt.trim().replace(/^```(?:json)?/i,'').replace(/```$/,'').trim();
+  try{
+    const a=s.indexOf('{'),b=s.lastIndexOf('}');
+    if(a<0||b<a)throw 0;
+    const o=JSON.parse(s.slice(a,b+1));
+    return{oppsummering:String(o.oppsummering||''),forslag:Array.isArray(o.forslag)?o.forslag:[],plan:Array.isArray(o.plan)?o.plan.map(String):[],tips:Array.isArray(o.tips)?o.tips.map(String):[]};
+  }catch(e){return{oppsummering:txt.trim(),forslag:[],plan:[],tips:[]}}
+}
+function setAiStatus(m,err){const e=$('#aiStat');e.textContent=m;e.hidden=!m;e.classList.toggle('err',!!err)}
+function renderAi(last){
+  const r=last.res,ref=last.ref;
+  let h='<p>'+esc(r.oppsummering)+'</p>';
+  if(last.picks&&last.picks.length){
+    h+='<h4>Forslag</h4><ul class="list">'+last.picks.map(p=>{
+      const c=p.cat==='mine'?{c:'--c-mine',i:ICON.star,l:'Min plass'}:(CATS[p.cat]||{c:'--c-dump',i:ICON.dump,l:'Sted'});
+      const d=ref?fmtDist(dist(ref,[p.lat,p.lon])):'';
+      return'<li class="item"><div class="dot" style="--c:var('+c.c+')"><svg viewBox="0 0 24 24" aria-hidden="true">'+c.i+'</svg></div><div class="body"><div class="t">'+esc(p.name)+'</div><div class="s">'+esc(c.l)+(d?' · '+d:'')+'</div>'+
+        (p.hvorfor?'<div class="why">'+esc(p.hvorfor)+'</div>':'')+'<div>'+(p.chips||[]).map(x=>'<span class="tg">'+esc(x)+'</span>').join('')+'</div>'+
+        '<div class="act"><button class="btn sm" data-act="aigo" data-lat="'+p.lat+'" data-lon="'+p.lon+'" data-name="'+esc(p.name)+'">Vis på kart</button><button class="btn sm primary" data-act="nav" data-lat="'+p.lat+'" data-lon="'+p.lon+'">Naviger</button></div></div></li>';
+    }).join('')+'</ul>';
+  }
+  if(r.plan.length)h+='<h4>Plan</h4><ol>'+r.plan.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ol>';
+  if(r.tips.length)h+='<h4>Tips</h4><ul class="tips">'+r.tips.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>';
+  h+='<div class="muted" style="font-size:12px;margin-top:10px">«'+esc(last.q)+'» · '+fmtDate(last.t)+' · '+esc(last.meta)+'. Sjekk alltid åpningstider, vei og regler selv.</div>';
+  $('#aiOut').innerHTML=h;
+  setAiStatus('');
+}
+async function askAi(){
+  if(AI.busy)return;
+  const q=$('#aiQ').value.trim();
+  if(!q){toast('Skriv hva du vil i dag');$('#aiQ').focus();return}
+  if(!AI.cfg.key){$('#aiSet').open=true;toast('Legg inn API-nøkkel først');$('#aiKey').focus();return}
+  if(!navigator.onLine){setAiStatus('Du er offline. AI trenger nett.',true);return}
+  AI.busy=true;$('#aiGo').disabled=true;setAiStatus('Henter steder og vær …');
+  try{
+    const ctx=await buildCtx($('#aiFrom').value);
+    setAiStatus('Claude planlegger …');
+    const res=parseAi(await askClaude(ctx.text+'\n<onske>'+q+'</onske>'));
+    const picks=[],seen={};
+    res.forslag.forEach(f=>{const sn=ctx.lookup.get(String(f&&f.id));if(sn&&!seen[sn.id]&&picks.length<6){seen[sn.id]=1;picks.push(Object.assign({},sn,{hvorfor:String(f.hvorfor||'')}))}});
+    const last={q,t:Date.now(),res,picks,ref:ctx.ref,meta:ctx.meta};
+    ls.set('ailast',last);renderAi(last);
+  }catch(e){setAiStatus('Feil: '+e.message,true)}
+  finally{AI.busy=false;$('#aiGo').disabled=false;renderAllSoon()}
+}
+function bindAi(){
+  const c=AI.cfg;
+  $('#aiKey').value=c.key||'';$('#aiModel').value=c.model||'claude-sonnet-5-5';$('#aiAbout').value=c.about||'';
+  if($('#aiModel').value!==c.model)$('#aiModel').value='claude-sonnet-5-5';
+  const save=()=>{AI.cfg={key:$('#aiKey').value.trim(),model:$('#aiModel').value,about:$('#aiAbout').value.trim()};ls.set('ai',AI.cfg)};
+  ['aiKey','aiModel','aiAbout'].forEach(id=>$('#'+id).addEventListener('change',save));
+  $('#aiGo').onclick=()=>{save();askAi()};
+  $('#aiQ').addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){save();askAi()}});
+  $$('.qchips button').forEach(b=>b.onclick=()=>{$('#aiQ').value=b.dataset.q;save();askAi()});
+  if(!AI.cfg.key)$('#aiSet').open=true;
+  const last=ls.get('ailast',null);
+  if(last&&last.res&&last.res.oppsummering!==undefined){$('#aiQ').value=last.q||'';renderAi(last)}
+  updateSun();
+}
+
 /* ---------- panel ---------- */
 const panel=$('#panel'),TABS=['sug','mine','trk','more'],TITLES={sug:'Forslag',mine:'Mine plasser',trk:'Spor'};
 let tab=ls.get('tab','sug'),sub=ls.get('sub','off');
@@ -1589,7 +1798,7 @@ function showTab(t){
   tab=t;ls.set('tab',t);
   $$('.pane').forEach(p=>p.hidden=p.id!=='p-'+t);
   $('#panes').scrollTop=0;
-  if(t==='sug')renderSug();
+  if(t==='sug'){renderSug();updateSun()}
   if(t==='mine')renderPlaces();
   if(t==='trk')updateRecUI();
   if(t==='more')showSub(sub);
@@ -1679,6 +1888,12 @@ function bind(){
       map.setView([p.lat,p.lon],Math.max(map.getZoom(),14));
       const m=placeMarkers.get(id);if(m)m.openPopup();
     }
+    else if(act==='aigo'){
+      const lat=+a.dataset.lat,lon=+a.dataset.lon;
+      setState('closed');gps.follow=false;$('#btnLocate').classList.remove('on');
+      map.setView([lat,lon],Math.max(map.getZoom(),14));
+      L.popup().setLatLng([lat,lon]).setContent('<b>'+esc(a.dataset.name)+'</b><div class="row wrap" style="margin:8px 0 0"><button class="btn sm primary" data-act="nav" data-lat="'+lat+'" data-lon="'+lon+'">Naviger</button></div>').openOn(map);
+    }
     else if(act==='trkview'){const t=tracks.find(x=>x.id===id);if(t){t.vis=t.vis===false;await DB.put('tracks',t.id,t);renderTracks()}}
     else if(act==='trkzoom'){const t=tracks.find(x=>x.id===id);if(t){setState('closed');gps.follow=false;$('#btnLocate').classList.remove('on');if(t.vis===false){t.vis=true;await DB.put('tracks',t.id,t);renderTracks()}map.fitBounds(L.latLngBounds(t.pts.map(p=>[p[0],p[1]])),{padding:[30,30]})}}
     else if(act==='trkgpx'){const t=tracks.find(x=>x.id===id);if(t)saveFile(t.name.replace(/[^\wæøåÆØÅ-]+/g,'_')+'.gpx',buildGpx([],[t]))}
@@ -1703,7 +1918,7 @@ async function init(){
   tracks=(await DB.all('tracks')).filter(t=>!t.active);
   const act=await DB.get('tracks','active');
   setupMap();
-  renderChips();bind();
+  renderChips();bind();bindAi();
   renderPlaces();renderTracks();
   showTab(tab);setState('closed');
   updateReadout();
@@ -1720,7 +1935,7 @@ async function init(){
   if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol))navigator.serviceWorker.register('sw.js').catch(()=>{});
   /* hvis nettleseren allerede har gitt tilgang, start GPS med en gang */
   if(navigator.permissions&&navigator.permissions.query)navigator.permissions.query({name:'geolocation'}).then(r=>{if(r.state==='granted')startGPS()}).catch(()=>{});
-  window.__ovn={map,gps,items,places,get tracks(){return tracks},get rec(){return rec},toUTM,buildGpx};
+  window.__ovn={map,gps,items,places,get tracks(){return tracks},get rec(){return rec},toUTM,buildGpx,sunTimes,hhmm,buildCtx};
 }
 init();
 })();
