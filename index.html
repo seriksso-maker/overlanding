@@ -1000,7 +1000,7 @@ select,input[type=text],input[type=password],textarea{border:1px solid var(--lin
       <p>Kart og steder du har sett lagres på enheten. Nedlasting av områder er begrenset i antall fliser for å være snill mot kartserverne.</p>
       <h4>Kilder</h4>
       <p>Kartdata © Kartverket (CC BY 4.0), © OpenStreetMap-bidragsytere, © OpenTopoMap (CC-BY-SA), satellitt: Esri, Maxar, Earthstar Geographics.</p>
-      <p class="muted" style="font-size:12px">Versjon 2026-11-01 q</p>
+      <p class="muted" style="font-size:12px">Versjon 2026-11-01 q2</p>
     </div>
     </div>
   </div>
@@ -1377,6 +1377,7 @@ async function fetchPeaks(lat,lon){
     if(cat)out.push({id:el.type[0]+el.id,lat:+el.lat.toFixed(6),lon:+el.lon.toFixed(6),cat,tags:pickTags(t)});
   }
   addItems(out);
+  AI.pk=out.length;
   return out.length;
 }
 async function runQueue(need,onDone){
@@ -1849,7 +1850,8 @@ async function buildCtx(from,q){
     const spots=[[ref[0],ref[1]]].concat(idx.map(i=>[pts[i][0],pts[i][1]]));
     jobs.push(cap((async()=>{for(const sp of spots)await ensureAround(sp[0],sp[1],true).catch(()=>0)})(),20000));
   }else{setAiStatus('Henter kartdata for området …');jobs.push(cap(ensureAround(ref[0],ref[1],true).catch(()=>0),25000))}
-  if(wantPk&&!dest){setAiStatus('Henter fjelltopper …');jobs.push(cap(fetchPeaks(ref[0],ref[1]).catch(e=>{net.err=(e&&e.message)||'feil';return 0}),18000))}
+  AI.pk=null;AI.pkErr='';
+  if(wantPk&&!dest){setAiStatus('Henter fjelltopper …');jobs.push(cap(fetchPeaks(ref[0],ref[1]).catch(e=>{AI.pkErr=(e&&e.message)||'feil';net.err=AI.pkErr;return 0}),18000))}
   const [wx]=await Promise.all(jobs);
   const lookup=new Map(),lines=[],arr=[],cnt={};
   if(dest){
@@ -1886,7 +1888,7 @@ async function buildCtx(from,q){
     '<egne_plasser>\n'+(ol.join('\n')||'(ingen)')+'\n</egne_plasser>';
   if(!warn&&wantPk&&![...lookup.values()].some(x=>x.cat==='peak'))warn='Fant ingen navngitte fjelltopper i kartdataene her'+(net.err?' ('+net.err+')':'')+'. Prøv å flytte kartet nærmere fjellet.';
   if(!warn&&!lookup.size)warn=net.failed?'Kartserveren (Overpass) svarte ikke: '+(net.err||'ukjent feil')+'. Prøv igjen om litt.':'Fant ingen steder i kartdataene ennå. Kartdata lastes i bakgrunnen, så vent litt og spør igjen.';
-  return{text,lookup,ref,dest,warn,meta:label+', '+lookup.size+' steder'+(dest?' langs ruten til '+dest.name:'')+(wx?', værvarsel':'')};
+  return{text,lookup,ref,dest,warn,meta:label+' ('+ref[0].toFixed(2)+', '+ref[1].toFixed(2)+'), '+lookup.size+' steder'+(wantPk?', topper hentet: '+(AI.pk==null?(AI.pkErr?'feil – '+AI.pkErr:'ikke svar i tide'):AI.pk):'')+', v.q'+(dest?' langs ruten til '+dest.name:'')+(wx?', værvarsel':'')};
 }
 const AI_SYS='Du er en praktisk reiseassistent i en kartapp for overlanding (bilbasert friluftsliv) i Norge og Sverige. Brukeren forteller hva hun eller han vil og skal i dag. Du får utgangspunkt, tid, soltider, værvarsel og en liste med steder fra kartdata (OpenStreetMap) og brukerens egne lagrede plasser, hver med id.\n\n'+
 'Regler:\n- Står det en rute i situasjonen, planlegg langs den: stedene har km fra start og avstand fra veien. Foreslå overnatting eller stopp som passer med kjøretid, soltider og tid på døgnet, og skriv km fra start. Kjøretiden er fra veirute, ikke luftlinje.\n- Foreslå bare steder fra listene, og referer til dem med nøyaktig id. Ikke finn på steder, priser, åpningstider eller veiforhold. Er noe usikkert, si det.\n- Ta hensyn til lysforhold, vær og kjøretid. Avstandene er luftlinje: anslå vanlig kjøretid grovt (luftlinje ganger ca. 1,4 på vanlig vei) og si at det er et anslag.\n- Er det få eller ingen passende steder, si det ærlig. Nevner brukeren et annet område enn utgangspunktet, si at du bare ser steder nær utgangspunktet og at kartet kan flyttes dit.\n- Nevn regler (allemannsrett, bålforbud i Norge 15. april til 15. september) bare når det er relevant, og kort.\n- Skriv norsk bokmål, kort og konkret.\n\n'+
