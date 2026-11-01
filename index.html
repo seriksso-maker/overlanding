@@ -1000,7 +1000,7 @@ select,input[type=text],input[type=password],textarea{border:1px solid var(--lin
       <p>Kart og steder du har sett lagres på enheten. Nedlasting av områder er begrenset i antall fliser for å være snill mot kartserverne.</p>
       <h4>Kilder</h4>
       <p>Kartdata © Kartverket (CC BY 4.0), © OpenStreetMap-bidragsytere, © OpenTopoMap (CC-BY-SA), satellitt: Esri, Maxar, Earthstar Geographics.</p>
-      <p class="muted" style="font-size:12px">Versjon 2026-11-01 p</p>
+      <p class="muted" style="font-size:12px">Versjon 2026-11-01 q</p>
     </div>
     </div>
   </div>
@@ -1367,6 +1367,18 @@ async function fetchCell(i,j){
   return out;
 }
 const addItems=arr=>arr.forEach(it=>items.set(it.id,it));
+async function fetchPeaks(lat,lon){
+  const bb='('+(lat-.35).toFixed(4)+','+(lon-.7).toFixed(4)+','+(lat+.35).toFixed(4)+','+(lon+.7).toFixed(4)+')';
+  const js=await overpass('[out:json][timeout:20];node["natural"="peak"]["name"]'+bb+';out 600;');
+  const out=[];
+  for(const el of js.elements||[]){
+    if(el.lat==null)continue;
+    const t=el.tags||{},cat=classify(t);
+    if(cat)out.push({id:el.type[0]+el.id,lat:+el.lat.toFixed(6),lon:+el.lon.toFixed(6),cat,tags:pickTags(t)});
+  }
+  addItems(out);
+  return out.length;
+}
 async function runQueue(need,onDone){
   let idx=0;
   const worker=async()=>{
@@ -1829,6 +1841,7 @@ async function buildCtx(from,q){
       dest={name:g.name,lat:g.lat,lon:g.lon,approx,km:r.km,min:r.min,line:r.line.length>400?r.line.filter((_,i)=>i%Math.ceil(r.line.length/400)===0||i===r.line.length-1):r.line};pts=densify(r.line)
     }
   }
+  const wantPk=/topp|tind|fjell|summit|peak|bestig/i.test(q||'');
   setAiStatus(dest?'Henter steder langs ruten …':'Henter steder og vær …');
   const jobs=[cap(getWeather(ref[0],ref[1]),4000)];
   if(dest){
@@ -1836,6 +1849,7 @@ async function buildCtx(from,q){
     const spots=[[ref[0],ref[1]]].concat(idx.map(i=>[pts[i][0],pts[i][1]]));
     jobs.push(cap((async()=>{for(const sp of spots)await ensureAround(sp[0],sp[1],true).catch(()=>0)})(),20000));
   }else{setAiStatus('Henter kartdata for området …');jobs.push(cap(ensureAround(ref[0],ref[1],true).catch(()=>0),25000))}
+  if(wantPk&&!dest){setAiStatus('Henter fjelltopper …');jobs.push(cap(fetchPeaks(ref[0],ref[1]).catch(e=>{net.err=(e&&e.message)||'feil';return 0}),18000))}
   const [wx]=await Promise.all(jobs);
   const lookup=new Map(),lines=[],arr=[],cnt={};
   if(dest){
@@ -1845,7 +1859,6 @@ async function buildCtx(from,q){
     items.forEach(it=>{const d=dist(ref,[it.lat,it.lon]);if(d<=100000)arr.push({it,d})});
     arr.sort((a,b)=>score(b.it,b.d)-score(a.it,a.d));
   }
-  const wantPk=/topp|tind|fjell|summit|peak|bestig|tur\b/i.test(q||'');
   if(wantPk)arr.sort((a,b)=>((b.it.cat==='peak')-(a.it.cat==='peak')));
   for(const {it,d,km} of arr){
     if(lookup.size>=30)break;
@@ -1871,6 +1884,7 @@ async function buildCtx(from,q){
     (AI.cfg.about?'\nOm brukeren og kjøretøyet: '+AI.cfg.about:'')+'\n</situasjon>\n'+
     '<steder>\n'+(lines.join('\n')||'(ingen steder funnet i nærheten, kartdata mangler eller brukeren er offline)')+'\n</steder>\n'+
     '<egne_plasser>\n'+(ol.join('\n')||'(ingen)')+'\n</egne_plasser>';
+  if(!warn&&wantPk&&![...lookup.values()].some(x=>x.cat==='peak'))warn='Fant ingen navngitte fjelltopper i kartdataene her'+(net.err?' ('+net.err+')':'')+'. Prøv å flytte kartet nærmere fjellet.';
   if(!warn&&!lookup.size)warn=net.failed?'Kartserveren (Overpass) svarte ikke: '+(net.err||'ukjent feil')+'. Prøv igjen om litt.':'Fant ingen steder i kartdataene ennå. Kartdata lastes i bakgrunnen, så vent litt og spør igjen.';
   return{text,lookup,ref,dest,warn,meta:label+', '+lookup.size+' steder'+(dest?' langs ruten til '+dest.name:'')+(wx?', værvarsel':'')};
 }
