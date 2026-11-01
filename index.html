@@ -852,7 +852,7 @@ select,input[type=text],input[type=password],textarea{border:1px solid var(--lin
 <div id="layerMenu" hidden>
   <h4>Kart</h4>
   <div id="baseList"></div>
-  <p class="note">Topo Norge dekker bare Norge. I Sverige: bruk Topo Norden.</p>
+  <p class="note">Norge vises fra Kartverket, resten fra OpenTopoMap.</p>
   <p class="note" id="tileStat"></p>
   <hr>
   <h4>Vis på kartet</h4>
@@ -967,7 +967,7 @@ select,input[type=text],input[type=password],textarea{border:1px solid var(--lin
       <p>Kart og steder du har sett lagres på enheten. Nedlasting av områder er begrenset i antall fliser for å være snill mot kartserverne.</p>
       <h4>Kilder</h4>
       <p>Kartdata © Kartverket (CC BY 4.0), © OpenStreetMap-bidragsytere, © OpenTopoMap (CC-BY-SA), satellitt: Esri, Maxar, Earthstar Geographics.</p>
-      <p class="muted" style="font-size:12px">Versjon 2026-11-01 e</p>
+      <p class="muted" style="font-size:12px">Versjon 2026-11-01 f</p>
     </div>
     </div>
   </div>
@@ -1055,8 +1055,8 @@ const DB={
 
 /* ---------- kartlag ---------- */
 const BASES={
-  topo:{name:'Topo Norge (Kartverket)',url:'https://cache.kartverket.no/v1/wmts/1.0.0/topo/default/webmercator/{z}/{y}/{x}.png',attr:'© <a href="https://www.kartverket.no/">Kartverket</a>',max:18,cap:3000,kb:22},
-  otopo:{name:'Topo Norden (OpenTopoMap)',url:'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',attr:'© <a href="https://opentopomap.org">OpenTopoMap</a>, © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',max:17,sub:'abc',cap:800,kb:25},
+  topo:{name:'Topo Norden (Kartverket + OpenTopoMap)',url:'https://cache.kartverket.no/v1/wmts/1.0.0/topo/default/webmercator/{z}/{y}/{x}.png',attr:'© <a href="https://www.kartverket.no/">Kartverket</a>, © <a href="https://opentopomap.org">OpenTopoMap</a>, © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',max:17,fallback:'otopo',minB:500,cap:1500,kb:24},
+  otopo:{name:'OpenTopoMap',url:'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',attr:'© <a href="https://opentopomap.org">OpenTopoMap</a>, © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',max:17,sub:'abc',cap:800,kb:25},
   osm:{name:'Veikart (OpenStreetMap)',url:'https://tile.openstreetmap.org/{z}/{x}/{y}.png',attr:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',max:19,cap:800,kb:20},
   sat:{name:'Satellitt (Esri)',url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',attr:'Esri, Maxar, Earthstar Geographics',max:18,cap:800,kb:30}
 };
@@ -1064,9 +1064,9 @@ function urlFor(b,x,y,z){
   const s=b.sub?b.sub[Math.abs(x+y)%b.sub.length]:'';
   return b.url.replace('{s}',s).replace('{x}',x).replace('{y}',y).replace('{z}',z);
 }
-async function tileSrc(url){
+async function tileSrc(url,minB,noUrl){
   const hit=await DB.get('tiles',url);
-  if(hit&&hit.blob)return URL.createObjectURL(hit.blob);
+  if(hit&&hit.blob)return noUrl?'cached':URL.createObjectURL(hit.blob);
   if(!navigator.onLine)return null;
   try{
     const ac=new AbortController(),to=setTimeout(()=>ac.abort(),12000);
@@ -1076,9 +1076,15 @@ async function tileSrc(url){
     const ct=r.headers.get('content-type')||'';
     if(ct&&ct.indexOf('image/')!==0)return null;
     const b=await r.blob();
-    if(b.size>0)DB.put('tiles',url,{blob:b,t:Date.now()});
-    return URL.createObjectURL(b);
-  }catch(e){return url}
+    if(b.size<(minB||1))return null;
+    DB.put('tiles',url,{blob:b,t:Date.now()});
+    return noUrl?'cached':URL.createObjectURL(b);
+  }catch(e){return noUrl?null:url}
+}
+async function tileWithFallback(b,x,y,z,noUrl){
+  let src=await tileSrc(urlFor(b,x,y,z),b.minB,noUrl);
+  if(!src&&b.fallback){const f=BASES[b.fallback];src=await tileSrc(urlFor(f,x,y,z),f.minB,noUrl)}
+  return src;
 }
 const tileStat={ok:0,fail:0};
 function tileStatShow(){const e=document.getElementById('tileStat');if(e)e.textContent='Kartfliser: '+tileStat.ok+' lastet, '+tileStat.fail+' feilet'}
@@ -1086,11 +1092,19 @@ const CachedTiles=L.TileLayer.extend({
   createTile(coords,done){
     const img=document.createElement('img');
     img.alt='';img.setAttribute('role','presentation');
-    const url=urlFor(BASES[this.options.key],coords.x,coords.y,coords.z);
-    tileSrc(url).then(src=>{
+    const b=BASES[this.options.key];
+    tileWithFallback(b,coords.x,coords.y,coords.z,false).then(src=>{
       if(!src){tileStat.fail++;tileStatShow();done(null,img);return}
-      img.onload=()=>{tileStat.ok++;tileStatShow();if(src.indexOf('blob:')===0)URL.revokeObjectURL(src);done(null,img)};
-      img.onerror=()=>{tileStat.fail++;tileStatShow();done(null,img)};
+      let retried=false;
+      img.onload=()=>{tileStat.ok++;tileStatShow();if(img.src.indexOf('blob:')===0)URL.revokeObjectURL(img.src);done(null,img)};
+      img.onerror=async()=>{
+        if(!retried&&b.fallback){
+          retried=true;
+          const f=BASES[b.fallback],s2=await tileSrc(urlFor(f,coords.x,coords.y,coords.z),f.minB,false);
+          if(s2){img.src=s2;return}
+        }
+        tileStat.fail++;tileStatShow();done(null,img);
+      };
       img.src=src;
     });
     return img;
@@ -1599,10 +1613,8 @@ async function downloadArea(){
   const prog=()=>{$('#offBar').style.width=Math.round(done/Math.max(1,list.length)*100)+'%';$('#offProg').textContent='Kart: '+done+' av '+list.length+(failed?' ('+failed+' feilet)':'')};
   const worker=async()=>{
     while(idx<list.length&&!dl.cancel){
-      const [x,y,z]=list[idx++],url=urlFor(b,x,y,z);
-      if(!(await DB.get('tiles',url))){
-        try{const r=await fetch(url,{mode:'cors'});if(r.ok){const bl=await r.blob();if(bl.size>0)await DB.put('tiles',url,{blob:bl,t:Date.now()})}else if(r.status!==404)failed++}catch(e){failed++}
-      }
+      const [x,y,z]=list[idx++];
+      if(!(await tileWithFallback(b,x,y,z,true)))failed++;
       done++;if(done%10===0)prog();
     }
   };
