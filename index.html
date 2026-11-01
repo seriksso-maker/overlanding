@@ -997,7 +997,7 @@ select,input[type=text],input[type=password],textarea{border:1px solid var(--lin
       <p>Kart og steder du har sett lagres på enheten. Nedlasting av områder er begrenset i antall fliser for å være snill mot kartserverne.</p>
       <h4>Kilder</h4>
       <p>Kartdata © Kartverket (CC BY 4.0), © OpenStreetMap-bidragsytere, © OpenTopoMap (CC-BY-SA), satellitt: Esri, Maxar, Earthstar Geographics.</p>
-      <p class="muted" style="font-size:12px">Versjon 2026-11-01 h</p>
+      <p class="muted" style="font-size:12px">Versjon 2026-11-01 j</p>
     </div>
     </div>
   </div>
@@ -1726,22 +1726,98 @@ async function ensureAround(lat,lon){
   net.failed=0;
   if(need.length)await runQueue(need.slice(0,12));
 }
-async function buildCtx(from){
+
+/* ---------- rute til destinasjon ---------- */
+const STOPW=new Set(['i','idag','dag','kveld','en','et','den','det','og','som','med','for','på','natt','natta','morgen','ved','fra','meg','nå','jeg','at','å','der','hvor','så','da']);
+function findDest(q){
+  const m=q.match(/(?:\btil|\bmot|\bretning|\bretningen)\s+([a-zæøåA-ZÆØÅ][\wæøåÆØÅ.-]*(?:\s+[a-zæøåA-ZÆØÅ][\wæøåÆØÅ.-]*)?)/i);
+  if(!m)return[];
+  const w=m[1].split(/\s+/).filter(Boolean);
+  if(STOPW.has(w[0].toLowerCase()))return[];
+  const out=[];
+  if(w.length>1&&!STOPW.has(w[1].toLowerCase()))out.push(w[0]+' '+w[1]);
+  out.push(w[0]);
+  return out;
+}
+async function fetchJson(url,ms){
+  const ac=new AbortController(),to=setTimeout(()=>ac.abort(),ms);
+  try{const r=await fetch(url,{signal:ac.signal});if(!r.ok)return null;return await r.json()}catch(e){return null}finally{clearTimeout(to)}
+}
+async function geocode(names){
+  for(const n of names){
+    const j=await fetchJson('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=no,se&accept-language=nb&q='+encodeURIComponent(n),5000);
+    if(j&&j[0])return{name:(j[0].display_name||n).split(',')[0],lat:+j[0].lat,lon:+j[0].lon};
+  }
+  return null;
+}
+async function getRoute(a,b){
+  const j=await fetchJson('https://router.project-osrm.org/route/v1/driving/'+a[1]+','+a[0]+';'+b[1]+','+b[0]+'?overview=simplified&geometries=geojson',7000);
+  const r=j&&j.routes&&j.routes[0];
+  if(!r)return null;
+  return{km:r.distance/1000,min:r.duration/60,line:r.geometry.coordinates.map(c=>[c[1],c[0]])};
+}
+function densify(line){
+  const out=[];let km=0;
+  for(let i=0;i<line.length;i++){
+    if(i===0){out.push([line[i][0],line[i][1],0]);continue}
+    const a=line[i-1],b=line[i],seg=dist(a,b)/1000,n=Math.max(1,Math.ceil(seg/4));
+    for(let k=1;k<=n;k++){const f=k/n;out.push([a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f,km+seg*f])}
+    km+=seg;
+  }
+  return out;
+}
+function nearRoute(pts,lat,lon){
+  let best=1e12,km=0;const c=Math.cos(lat*rad);
+  for(const p of pts){const dy=(p[0]-lat)*111.2,dx=(p[1]-lon)*111.2*c,d=dx*dx+dy*dy;if(d<best){best=d;km=p[2]}}
+  return{d:Math.sqrt(best),km};
+}
+function fmtMin(m){const h=Math.floor(m/60),mm=Math.round(m%60);return h?h+' t '+(mm?mm+' min':''):mm+' min'}
+let routeLine=null;
+function drawRoute(d,fit){
+  if(routeLine){map.removeLayer(routeLine);routeLine=null}
+  if(!d||!d.line||!d.line.length)return;
+  routeLine=L.polyline(d.line,{color:'#d8432b',weight:5,opacity:.85}).addTo(map);
+  if(fit)map.fitBounds(routeLine.getBounds(),{padding:[40,40]});
+}
+async function buildCtx(from,q){
   let ref,label;
   if(from==='me'&&gps.pos){ref=[gps.pos.lat,gps.pos.lon];label='GPS-posisjon'}
   else{const c=map.getCenter();ref=[c.lat,c.lng];label='midten av kartet'}
   const cap=(pr,ms)=>Promise.race([pr,new Promise(r=>setTimeout(()=>r(null),ms))]);
-  const [,wx]=await Promise.all([cap(ensureAround(ref[0],ref[1]).catch(()=>0),6000),cap(getWeather(ref[0],ref[1]),4000)]);
+  /* destinasjon? */
+  let dest=null,pts=null;
+  const dn=findDest(q||'');
+  if(dn.length&&navigator.onLine){
+    setAiStatus('Finner rute …');
+    const g=await geocode(dn);
+    if(g&&dist(ref,[g.lat,g.lon])>15000){
+      const r=await getRoute(ref,[g.lat,g.lon]);
+      if(r){dest={name:g.name,lat:g.lat,lon:g.lon,km:r.km,min:r.min,line:r.line.length>400?r.line.filter((_,i)=>i%Math.ceil(r.line.length/400)===0||i===r.line.length-1):r.line};pts=densify(r.line)}
+    }
+  }
+  setAiStatus(dest?'Henter steder langs ruten …':'Henter steder og vær …');
+  const jobs=[cap(getWeather(ref[0],ref[1]),4000)];
+  if(dest){
+    const idx=[];for(let k=1;k<=3;k++)idx.push(Math.min(pts.length-1,Math.round(pts.length*k/3)-1));
+    const spots=[[ref[0],ref[1]]].concat(idx.map(i=>[pts[i][0],pts[i][1]]));
+    jobs.push(cap((async()=>{for(const sp of spots)await ensureAround(sp[0],sp[1]).catch(()=>0)})(),10000));
+  }else jobs.push(cap(ensureAround(ref[0],ref[1]).catch(()=>0),6000));
+  const [wx]=await Promise.all(jobs);
   const lookup=new Map(),lines=[],arr=[],cnt={};
-  items.forEach(it=>{const d=dist(ref,[it.lat,it.lon]);if(d<=100000)arr.push({it,d})});
-  arr.sort((a,b)=>score(b.it,b.d)-score(a.it,a.d));
-  for(const {it,d} of arr){
+  if(dest){
+    items.forEach(it=>{const n=nearRoute(pts,it.lat,it.lon);if(n.d<=12)arr.push({it,d:n.d*1000,km:n.km})});
+    arr.sort((a,b)=>score(b.it,b.d)-score(a.it,a.d));
+  }else{
+    items.forEach(it=>{const d=dist(ref,[it.lat,it.lon]);if(d<=100000)arr.push({it,d})});
+    arr.sort((a,b)=>score(b.it,b.d)-score(a.it,a.d));
+  }
+  for(const {it,d,km} of arr){
     if(lookup.size>=30)break;
     const k=it.cat;cnt[k]=(cnt[k]||0)+1;
     if((k==='water'||k==='dump')&&cnt[k]>4)continue;
     const tg=tagList(it);
-    lines.push(it.id+' | '+CATS[k].l+' | '+itemName(it)+' | '+fmtDist(d)+' '+compass(bearing(ref,[it.lat,it.lon]))+(tg.length?' | '+tg.join(', '):''));
-    lookup.set(it.id,{id:it.id,name:itemName(it),cat:k,lat:it.lat,lon:it.lon,chips:tg});
+    lines.push(it.id+' | '+CATS[k].l+' | '+itemName(it)+' | '+(dest?'km '+Math.round(km)+' fra start, '+(d<1000?Math.round(d)+' m':(d/1000).toFixed(1)+' km')+' fra veien':fmtDist(d)+' '+compass(bearing(ref,[it.lat,it.lon])))+(tg.length?' | '+tg.join(', '):''));
+    lookup.set(it.id,{id:it.id,name:itemName(it),cat:k,lat:it.lat,lon:it.lon,chips:tg,km:dest?km:undefined});
   }
   const own=places.map(p=>({p,d:dist(ref,[p.lat,p.lon])})).filter(o=>o.d<=150000).sort((a,b)=>a.d-b.d).slice(0,15);
   const ol=own.map(({p,d})=>{
@@ -1752,21 +1828,22 @@ async function buildCtx(from){
   const now=new Date(),tz=Intl.DateTimeFormat().resolvedOptions().timeZone;
   const text='<situasjon>\nTid: '+now.toLocaleString('nb-NO',{weekday:'long',day:'numeric',month:'long',hour:'2-digit',minute:'2-digit'})+' ('+tz+')\n'+
     'Utgangspunkt: '+ref[0].toFixed(4)+', '+ref[1].toFixed(4)+' ('+label+')\n'+
+    (dest?'Rute: til '+dest.name+', '+Math.round(dest.km)+' km, ca '+fmtMin(dest.min)+' kjøretid uten stopp (veirute)\n':'')+
     'Sol: '+sunText(ref[0],ref[1])+'\n'+
     'Vær: '+(wx?'\n'+wx.join('\n'):'ikke tilgjengelig')+
     (AI.cfg.about?'\nOm brukeren og kjøretøyet: '+AI.cfg.about:'')+'\n</situasjon>\n'+
     '<steder>\n'+(lines.join('\n')||'(ingen steder funnet i nærheten, kartdata mangler eller brukeren er offline)')+'\n</steder>\n'+
     '<egne_plasser>\n'+(ol.join('\n')||'(ingen)')+'\n</egne_plasser>';
-  return{text,lookup,ref,meta:label+', '+lookup.size+' steder'+(wx?', værvarsel':'')};
+  return{text,lookup,ref,dest,meta:label+', '+lookup.size+' steder'+(dest?' langs ruten til '+dest.name:'')+(wx?', værvarsel':'')};
 }
 const AI_SYS='Du er en praktisk reiseassistent i en kartapp for overlanding (bilbasert friluftsliv) i Norge og Sverige. Brukeren forteller hva hun eller han vil og skal i dag. Du får utgangspunkt, tid, soltider, værvarsel og en liste med steder fra kartdata (OpenStreetMap) og brukerens egne lagrede plasser, hver med id.\n\n'+
-'Regler:\n- Foreslå bare steder fra listene, og referer til dem med nøyaktig id. Ikke finn på steder, priser, åpningstider eller veiforhold. Er noe usikkert, si det.\n- Ta hensyn til lysforhold, vær og kjøretid. Avstandene er luftlinje: anslå vanlig kjøretid grovt (luftlinje ganger ca. 1,4 på vanlig vei) og si at det er et anslag.\n- Er det få eller ingen passende steder, si det ærlig. Nevner brukeren et annet område enn utgangspunktet, si at du bare ser steder nær utgangspunktet og at kartet kan flyttes dit.\n- Nevn regler (allemannsrett, bålforbud i Norge 15. april til 15. september) bare når det er relevant, og kort.\n- Skriv norsk bokmål, kort og konkret.\n\n'+
+'Regler:\n- Står det en rute i situasjonen, planlegg langs den: stedene har km fra start og avstand fra veien. Foreslå overnatting eller stopp som passer med kjøretid, soltider og tid på døgnet, og skriv km fra start. Kjøretiden er fra veirute, ikke luftlinje.\n- Foreslå bare steder fra listene, og referer til dem med nøyaktig id. Ikke finn på steder, priser, åpningstider eller veiforhold. Er noe usikkert, si det.\n- Ta hensyn til lysforhold, vær og kjøretid. Avstandene er luftlinje: anslå vanlig kjøretid grovt (luftlinje ganger ca. 1,4 på vanlig vei) og si at det er et anslag.\n- Er det få eller ingen passende steder, si det ærlig. Nevner brukeren et annet område enn utgangspunktet, si at du bare ser steder nær utgangspunktet og at kartet kan flyttes dit.\n- Nevn regler (allemannsrett, bålforbud i Norge 15. april til 15. september) bare når det er relevant, og kort.\n- Skriv norsk bokmål, kort og konkret.\n\n'+
 'Svar KUN med gyldig JSON, uten markdown og uten tekst rundt, på denne formen:\n{"oppsummering": "2-3 setninger med anbefalingen", "forslag": [{"id": "id fra listene", "hvorfor": "kort begrunnelse"}], "plan": ["kort steg med omtrentlig klokkeslett"], "tips": ["kort tips"]}\n"forslag" har maks 4 steder, best først (kan være tom). "plan" har 3-5 korte steg (kan være tom). "tips" har 0-3 korte punkter. Hold svaret kort.';
 async function askClaude(user,opts){
   const ac=new AbortController(),to=setTimeout(()=>ac.abort(),70000);
   try{
     const w=/^https:\/\//.test(AI.cfg.worker||'')&&(AI.cfg.token||!AI.cfg.key)?AI.cfg.worker:'';
-    const body=JSON.stringify(Object.assign({model:AI.cfg.model,max_tokens:1000,system:AI_SYS,messages:[{role:'user',content:user}]},opts||{}));
+    const body=JSON.stringify(Object.assign({model:AI.cfg.model,max_tokens:1300,system:AI_SYS,messages:[{role:'user',content:user}]},opts||{}));
     const r=w?await fetch(w,{method:'POST',signal:ac.signal,headers:{'content-type':'application/json','x-app-token':AI.cfg.token||''},body}):
       await fetch('https://api.anthropic.com/v1/messages',{method:'POST',signal:ac.signal,headers:{'content-type':'application/json','x-api-key':AI.cfg.key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body});
     const j=await r.json().catch(()=>null);
@@ -1784,18 +1861,27 @@ function parseAi(txt){
     if(a<0||b<a)throw 0;
     const o=JSON.parse(s.slice(a,b+1));
     return{oppsummering:String(o.oppsummering||''),forslag:Array.isArray(o.forslag)?o.forslag:[],plan:Array.isArray(o.plan)?o.plan.map(String):[],tips:Array.isArray(o.tips)?o.tips.map(String):[]};
-  }catch(e){return{oppsummering:txt.trim(),forslag:[],plan:[],tips:[]}}
+  }catch(e){
+    /* avkortet eller litt ugyldig JSON: hent ut det som går an */
+    const un=v=>{try{return JSON.parse('"'+v+'"')}catch(x){return v.replace(/\\n/g,' ').replace(/\\"/g,'"')}};
+    const m=s.match(/"oppsummering"\s*:\s*"((?:[^"\\]|\\.)*)/);
+    const arr=k=>{const mm=s.match(new RegExp('"'+k+'"\\s*:\\s*\\[([\\s\\S]*?)(?:\\]|$)'));return mm?[...mm[1].matchAll(/"((?:[^"\\]|\\.)*)"/g)].map(x=>un(x[1])):[]};
+    const ids=[...s.matchAll(/"id"\s*:\s*"((?:[^"\\]|\\.)*)"\s*,\s*"hvorfor"\s*:\s*"((?:[^"\\]|\\.)*)"/g)].map(x=>({id:un(x[1]),hvorfor:un(x[2])}));
+    return{oppsummering:m?un(m[1]):'Fikk ikke noe lesbart svar. Prøv igjen.',forslag:ids,plan:arr('plan'),tips:arr('tips')};
+  }
 }
 function setAiStatus(m,err){const e=$('#aiStat');e.textContent=m;e.hidden=!m;e.classList.toggle('err',!!err);$('#aiGo').classList.toggle('busy',!!AI.busy)}
 function openAiSettings(){sub='ai';ls.set('sub','ai');showTab('more');if(panel.dataset.state==='closed')setState('open')}
 function autoGrow(){const q=$('#aiQ');q.style.height='38px';q.style.height=Math.min(q.scrollHeight,110)+'px'}
 function renderAi(last){
   const r=last.res,ref=last.ref;
-  let h='<p class="lead">'+esc(r.oppsummering)+'</p>';
+  let h='';
+  if(last.dest){const d=last.dest;h+='<div class="card2"><div class="t" style="font-weight:700;font-size:16px">Til '+esc(d.name)+'</div><div class="muted" style="font-size:13px;margin:2px 0 10px">'+Math.round(d.km)+' km · ca '+fmtMin(d.min)+' uten stopp</div><div class="row wrap" style="margin:0"><button class="btn sm primary" data-act="nav" data-lat="'+d.lat+'" data-lon="'+d.lon+'">Naviger</button><button class="btn sm" data-act="routeshow">Vis rute på kart</button></div></div>'}
+  h+='<p class="lead">'+esc(r.oppsummering)+'</p>';
   if(last.picks&&last.picks.length){
     h+='<h4>Forslag</h4><ul class="list">'+last.picks.map(p=>{
       const c=p.cat==='mine'?{c:'--c-mine',i:ICON.star,l:'Min plass'}:(CATS[p.cat]||{c:'--c-dump',i:ICON.dump,l:'Sted'});
-      const d=ref?fmtDist(dist(ref,[p.lat,p.lon])):'';
+      const d=p.km!=null?'km '+Math.round(p.km)+' på ruten':(ref?fmtDist(dist(ref,[p.lat,p.lon])):'');
       return'<li class="item"><div class="dot" style="--c:var('+c.c+')"><svg viewBox="0 0 24 24" aria-hidden="true">'+c.i+'</svg></div><div class="body"><div class="t">'+esc(p.name)+'</div><div class="s">'+esc(c.l)+(d?' · '+d:'')+'</div>'+
         (p.hvorfor?'<div class="why">'+esc(p.hvorfor)+'</div>':'')+'<div>'+(p.chips||[]).map(x=>'<span class="tg">'+esc(x)+'</span>').join('')+'</div>'+
         '<div class="act"><button class="btn sm" data-act="aigo" data-lat="'+p.lat+'" data-lon="'+p.lon+'" data-name="'+esc(p.name)+'">Vis på kart</button><button class="btn sm primary" data-act="nav" data-lat="'+p.lat+'" data-lon="'+p.lon+'">Naviger</button></div></div></li>';
@@ -1815,14 +1901,14 @@ async function askAi(){
   if(!navigator.onLine){setAiStatus('Du er offline. AI trenger nett.',true);return}
   AI.busy=true;$('#aiGo').disabled=true;document.body.classList.add('asking');$('#aiQ').blur();setAiStatus('Henter steder og vær …');
   try{
-    const ctx=await buildCtx($('#aiFrom').value);
+    const ctx=await buildCtx($('#aiFrom').value,q);
     const t0=Date.now(),tick=setInterval(()=>setAiStatus('Claude planlegger … '+Math.round((Date.now()-t0)/1000)+' s'),1000);AI.tick=tick;setAiStatus('Claude planlegger …');
     let raw;try{raw=await askClaude(ctx.text+'\n<onske>'+q+'</onske>')}finally{clearInterval(tick)}
     const res=parseAi(raw);
     const picks=[],seen={};
     res.forslag.forEach(f=>{const sn=ctx.lookup.get(String(f&&f.id));if(sn&&!seen[sn.id]&&picks.length<6){seen[sn.id]=1;picks.push(Object.assign({},sn,{hvorfor:String(f.hvorfor||'')}))}});
-    const last={q,t:Date.now(),res,picks,ref:ctx.ref,meta:ctx.meta};
-    ls.set('ailast',last);renderAi(last);showTab('sug');if(panel.dataset.state==='closed')setState('open');setTimeout(()=>{$('#panes').scrollTop=0},60);
+    const last={q,t:Date.now(),res,picks,ref:ctx.ref,meta:ctx.meta,dest:ctx.dest};
+    ls.set('ailast',last);renderAi(last);if(last.dest)drawRoute(last.dest,false);showTab('sug');if(panel.dataset.state==='closed')setState('open');setTimeout(()=>{$('#panes').scrollTop=0},60);
   }catch(e){setAiStatus('Feil: '+e.message,true)}
   finally{AI.busy=false;$('#aiGo').disabled=false;$('#aiGo').classList.remove('busy');document.body.classList.remove('asking');renderAllSoon()}
 }
@@ -1846,7 +1932,7 @@ function bindAi(){
   $('#aiQ').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();save();askAi()}});
   $$('.qchips button').forEach(b=>b.onclick=()=>{$('#aiQ').value=b.dataset.q;autoGrow();save();askAi()});
   const last=ls.get('ailast',null);
-  if(last&&last.res&&last.res.oppsummering!==undefined){$('#aiQ').value=last.q||'';renderAi(last)}
+  if(last&&last.res&&last.res.oppsummering!==undefined){$('#aiQ').value=last.q||'';renderAi(last);if(last.dest)drawRoute(last.dest,false)}
   else $('#aiOut').innerHTML='<div class="aiempty"><b>Skriv hva du vil i dag</b> i feltet øverst, så foreslår AI steder ut fra kartet, været og når sola går ned.</div>';
   autoGrow();
   updateSun();
@@ -1959,6 +2045,7 @@ function bind(){
     const a=e.target.closest('[data-act]');if(!a)return;
     const id=a.dataset.id,act=a.dataset.act;
     if(act==='nav')window.open(nav(a.dataset.lat,a.dataset.lon),'_blank','noopener');
+    else if(act==='routeshow'){const l=ls.get('ailast',null);if(l&&l.dest){setState('closed');gps.follow=false;$('#btnLocate').classList.remove('on');drawRoute(l.dest,true)}}
     else if(act==='save'){const it=items.get(id);if(it){map.closePopup();openPlaceForm({lat:it.lat,lon:it.lon,name:itemName(it),type:PT_FROM_CAT[it.cat]||'other',note:''})}}
     else if(act==='edit'){const p=places.find(x=>x.id===id);if(p){map.closePopup();openPlaceForm(p)}}
     else if(act==='goto'){
