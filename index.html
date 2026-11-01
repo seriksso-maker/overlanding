@@ -951,7 +951,7 @@ select,input[type=text],input[type=password],textarea{border:1px solid var(--lin
         <h4>Koble til AI</h4>
         <label>Worker-adresse<input type="text" id="aiWorker" autocomplete="off" placeholder="https://overland-ai.….workers.dev"></label>
         <label>Tilgangskode<input type="password" id="aiToken" autocomplete="off"></label>
-        <label>Modell<select id="aiModel"><option value="claude-sonnet-5-5">Sonnet 5.5 (best)</option><option value="claude-haiku-5-5">Haiku 5.5 (raskest og billigst)</option></select></label>
+        <label>Modell<select id="aiModel"><option value="claude-haiku-5-5">Haiku 5.5 (rask, anbefalt)</option><option value="claude-sonnet-5-5">Sonnet 5.5 (grundigere, tregere)</option></select></label>
         <label>Om deg og kjøretøyet (valgfritt)<input type="text" id="aiAbout" autocomplete="off" placeholder="F.eks. terrengbil, sover i bilen, har bålutstyr"></label>
         <div class="aitest"><button class="btn primary" id="aiTest" type="button">Test forbindelsen</button><span id="aiTestOut" class="muted" style="font-size:13px"></span></div>
       </div>
@@ -997,7 +997,7 @@ select,input[type=text],input[type=password],textarea{border:1px solid var(--lin
       <p>Kart og steder du har sett lagres på enheten. Nedlasting av områder er begrenset i antall fliser for å være snill mot kartserverne.</p>
       <h4>Kilder</h4>
       <p>Kartdata © Kartverket (CC BY 4.0), © OpenStreetMap-bidragsytere, © OpenTopoMap (CC-BY-SA), satellitt: Esri, Maxar, Earthstar Geographics.</p>
-      <p class="muted" style="font-size:12px">Versjon 2026-11-01 g</p>
+      <p class="muted" style="font-size:12px">Versjon 2026-11-01 h</p>
     </div>
     </div>
   </div>
@@ -1669,7 +1669,7 @@ async function downloadArea(){
 
 /* ---------- AI-planlegger ---------- */
 const DEFAULT_WORKER='https://overlandai.seriksso.workers.dev';
-const AI={cfg:Object.assign({key:'',model:'claude-sonnet-5-5',about:'',worker:DEFAULT_WORKER,token:''},ls.get('ai',{})),busy:false};
+const AI={cfg:Object.assign({key:'',model:'claude-haiku-5-5',about:'',worker:DEFAULT_WORKER,token:''},ls.get('ai',{})),busy:false};
 if(!AI.cfg.worker)AI.cfg.worker=DEFAULT_WORKER;
 const COMPASS=['N','NØ','Ø','SØ','S','SV','V','NV'];
 function bearing(a,b){const dl=(b[1]-a[1])*rad,y=Math.sin(dl)*Math.cos(b[0]*rad),x=Math.cos(a[0]*rad)*Math.sin(b[0]*rad)-Math.sin(a[0]*rad)*Math.cos(b[0]*rad)*Math.cos(dl);return(Math.atan2(y,x)/rad+360)%360}
@@ -1730,13 +1730,13 @@ async function buildCtx(from){
   let ref,label;
   if(from==='me'&&gps.pos){ref=[gps.pos.lat,gps.pos.lon];label='GPS-posisjon'}
   else{const c=map.getCenter();ref=[c.lat,c.lng];label='midten av kartet'}
-  await ensureAround(ref[0],ref[1]);
-  const wx=await getWeather(ref[0],ref[1]);
+  const cap=(pr,ms)=>Promise.race([pr,new Promise(r=>setTimeout(()=>r(null),ms))]);
+  const [,wx]=await Promise.all([cap(ensureAround(ref[0],ref[1]).catch(()=>0),6000),cap(getWeather(ref[0],ref[1]),4000)]);
   const lookup=new Map(),lines=[],arr=[],cnt={};
   items.forEach(it=>{const d=dist(ref,[it.lat,it.lon]);if(d<=100000)arr.push({it,d})});
   arr.sort((a,b)=>score(b.it,b.d)-score(a.it,a.d));
   for(const {it,d} of arr){
-    if(lookup.size>=45)break;
+    if(lookup.size>=30)break;
     const k=it.cat;cnt[k]=(cnt[k]||0)+1;
     if((k==='water'||k==='dump')&&cnt[k]>4)continue;
     const tg=tagList(it);
@@ -1761,12 +1761,12 @@ async function buildCtx(from){
 }
 const AI_SYS='Du er en praktisk reiseassistent i en kartapp for overlanding (bilbasert friluftsliv) i Norge og Sverige. Brukeren forteller hva hun eller han vil og skal i dag. Du får utgangspunkt, tid, soltider, værvarsel og en liste med steder fra kartdata (OpenStreetMap) og brukerens egne lagrede plasser, hver med id.\n\n'+
 'Regler:\n- Foreslå bare steder fra listene, og referer til dem med nøyaktig id. Ikke finn på steder, priser, åpningstider eller veiforhold. Er noe usikkert, si det.\n- Ta hensyn til lysforhold, vær og kjøretid. Avstandene er luftlinje: anslå vanlig kjøretid grovt (luftlinje ganger ca. 1,4 på vanlig vei) og si at det er et anslag.\n- Er det få eller ingen passende steder, si det ærlig. Nevner brukeren et annet område enn utgangspunktet, si at du bare ser steder nær utgangspunktet og at kartet kan flyttes dit.\n- Nevn regler (allemannsrett, bålforbud i Norge 15. april til 15. september) bare når det er relevant, og kort.\n- Skriv norsk bokmål, kort og konkret.\n\n'+
-'Svar KUN med gyldig JSON, uten markdown og uten tekst rundt, på denne formen:\n{"oppsummering": "2-3 setninger med anbefalingen", "forslag": [{"id": "id fra listene", "hvorfor": "kort begrunnelse"}], "plan": ["kort steg med omtrentlig klokkeslett"], "tips": ["kort tips"]}\n"forslag" har maks 5 steder, best først (kan være tom). "plan" har 3-7 steg (kan være tom hvis det ikke passer). "tips" har 0-4 punkter.';
+'Svar KUN med gyldig JSON, uten markdown og uten tekst rundt, på denne formen:\n{"oppsummering": "2-3 setninger med anbefalingen", "forslag": [{"id": "id fra listene", "hvorfor": "kort begrunnelse"}], "plan": ["kort steg med omtrentlig klokkeslett"], "tips": ["kort tips"]}\n"forslag" har maks 4 steder, best først (kan være tom). "plan" har 3-5 korte steg (kan være tom). "tips" har 0-3 korte punkter. Hold svaret kort.';
 async function askClaude(user,opts){
   const ac=new AbortController(),to=setTimeout(()=>ac.abort(),70000);
   try{
     const w=/^https:\/\//.test(AI.cfg.worker||'')&&(AI.cfg.token||!AI.cfg.key)?AI.cfg.worker:'';
-    const body=JSON.stringify(Object.assign({model:AI.cfg.model,max_tokens:1800,system:AI_SYS,messages:[{role:'user',content:user}]},opts||{}));
+    const body=JSON.stringify(Object.assign({model:AI.cfg.model,max_tokens:1000,system:AI_SYS,messages:[{role:'user',content:user}]},opts||{}));
     const r=w?await fetch(w,{method:'POST',signal:ac.signal,headers:{'content-type':'application/json','x-app-token':AI.cfg.token||''},body}):
       await fetch('https://api.anthropic.com/v1/messages',{method:'POST',signal:ac.signal,headers:{'content-type':'application/json','x-api-key':AI.cfg.key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body});
     const j=await r.json().catch(()=>null);
@@ -1816,8 +1816,9 @@ async function askAi(){
   AI.busy=true;$('#aiGo').disabled=true;document.body.classList.add('asking');$('#aiQ').blur();setAiStatus('Henter steder og vær …');
   try{
     const ctx=await buildCtx($('#aiFrom').value);
-    setAiStatus('Claude planlegger …');
-    const res=parseAi(await askClaude(ctx.text+'\n<onske>'+q+'</onske>'));
+    const t0=Date.now(),tick=setInterval(()=>setAiStatus('Claude planlegger … '+Math.round((Date.now()-t0)/1000)+' s'),1000);AI.tick=tick;setAiStatus('Claude planlegger …');
+    let raw;try{raw=await askClaude(ctx.text+'\n<onske>'+q+'</onske>')}finally{clearInterval(tick)}
+    const res=parseAi(raw);
     const picks=[],seen={};
     res.forslag.forEach(f=>{const sn=ctx.lookup.get(String(f&&f.id));if(sn&&!seen[sn.id]&&picks.length<6){seen[sn.id]=1;picks.push(Object.assign({},sn,{hvorfor:String(f.hvorfor||'')}))}});
     const last={q,t:Date.now(),res,picks,ref:ctx.ref,meta:ctx.meta};
@@ -1828,7 +1829,9 @@ async function askAi(){
 function bindAi(){
   const c=AI.cfg;
   $('#aiKey').value=c.key||'';$('#aiWorker').value=c.worker||'';$('#aiToken').value=c.token||'';$('#aiModel').value=c.model||'claude-sonnet-5-5';$('#aiAbout').value=c.about||'';
-  if($('#aiModel').value!==c.model)$('#aiModel').value='claude-sonnet-5-5';
+  if($('#aiModel').value!==c.model)$('#aiModel').value='claude-haiku-5-5';
+  if(!ls.get('aimodel2',0)){c.model='claude-haiku-5-5';AI.cfg.model=c.model;ls.set('ai',AI.cfg);ls.set('aimodel2',1)}
+  $('#aiModel').value=c.model||'claude-haiku-5-5';
   const save=()=>{AI.cfg={key:$('#aiKey').value.trim(),worker:$('#aiWorker').value.trim(),token:$('#aiToken').value.trim(),model:$('#aiModel').value,about:$('#aiAbout').value.trim()};ls.set('ai',AI.cfg)};
   ['aiKey','aiWorker','aiToken','aiModel','aiAbout'].forEach(id=>$('#'+id).addEventListener('change',save));
   $('#ask').addEventListener('submit',e=>{e.preventDefault();save();askAi()});
