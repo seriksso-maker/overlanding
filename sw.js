@@ -1,7 +1,13 @@
 /* Service worker: holder selve appen tilgjengelig offline når den ligger på en https-adresse. */
-const V = 'overland-norden-v1';
+const V = 'overland-norden-v2';
+const SHELL = ['./', 'vendor/maplibre-gl.js', 'vendor/maplibre-gl.css', 'vendor/leaflet-maplibre-gl.js'];
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(V).then(c => c.add('./')).catch(() => {}).then(() => self.skipWaiting()));
+  e.waitUntil(
+    caches.open(V)
+      .then(c => Promise.all(SHELL.map(u => c.add(u).catch(() => {}))))
+      .catch(() => {})
+      .then(() => self.skipWaiting())
+  );
 });
 self.addEventListener('activate', e => {
   e.waitUntil(
